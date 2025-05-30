@@ -55,6 +55,8 @@ class Scope(StrEnum):
     customer_sessions_write = "customer_sessions:write"
 
     orders_read = "orders:read"
+    orders_write = "orders:write"
+
     refunds_read = "refunds:read"
     refunds_write = "refunds:write"
     payments_read = "payments:read"
@@ -77,6 +79,9 @@ class Scope(StrEnum):
 
     customer_portal_read = "customer_portal:read"
     customer_portal_write = "customer_portal:write"
+
+    notifications_read = "notifications:read"
+    notifications_write = "notifications:write"
 
     notification_recipients_read = "notification_recipients:read"
     notification_recipients_write = "notification_recipients:write"
@@ -126,6 +131,7 @@ SCOPES_SUPPORTED_DISPLAY_NAMES: dict[Scope, str] = {
     Scope.customers_read: "Read customers",
     Scope.customers_write: "Create or modify customers",
     Scope.orders_read: "Read orders made on your organizations",
+    Scope.orders_write: "Modify orders made on your organizations",
     Scope.refunds_read: "Read refunds made on your organizations",
     Scope.refunds_write: "Create or modify refunds",
     Scope.payments_read: "Read payments made on your organizations",
@@ -136,6 +142,8 @@ SCOPES_SUPPORTED_DISPLAY_NAMES: dict[Scope, str] = {
     Scope.webhooks_write: "Create or modify webhooks",
     Scope.customer_portal_read: "Read your orders, subscriptions and benefits",
     Scope.customer_portal_write: "Create or modify your orders, subscriptions and benefits",
+    Scope.notifications_read: "Read notifications",
+    Scope.notifications_write: "Mark notifications as read",
     Scope.notification_recipients_read: "Read notification recipients",
     Scope.notification_recipients_write: "Create or modify notification recipients",
 }
