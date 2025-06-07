@@ -124,6 +124,7 @@ services:
       - fromGroup: backend-production
       - fromGroup: stripe-production
       - fromGroup: logfire-worker
+      - fromGroup: aws-s3-production
 
   - type: redis
     name: redis
@@ -250,6 +251,7 @@ services:
       - fromGroup: github-sandbox
       - fromGroup: backend-sandbox
       - fromGroup: stripe-sandbox
+      - fromGroup: aws-s3-sandbox
 
 databases:
   - name: db
@@ -341,6 +343,10 @@ envVarGroups:
         value: 600
       - key: POLAR_S3_FILES_PUBLIC_BUCKET_NAME
         value: polar-public-files
+      - key: POLAR_S3_CUSTOMER_INVOICES_BUCKET_NAME
+        value: polar-customer-invoices
+      - key: POLAR_S3_PAYOUT_INVOICES_BUCKET_NAME
+        value: polar-payout-invoices
 
   - name: github-production
     envVars:
@@ -444,6 +450,10 @@ envVarGroups:
         value: 600
       - key: POLAR_S3_FILES_PUBLIC_BUCKET_NAME
         value: polar-public-sandbox-files
+      - key: POLAR_S3_CUSTOMER_INVOICES_BUCKET_NAME
+        value: polar-sandbox-customer-invoices
+      - key: POLAR_S3_PAYOUT_INVOICES_BUCKET_NAME
+        value: polar-sandbox-payout-invoices
 
   - name: github-sandbox
     envVars:

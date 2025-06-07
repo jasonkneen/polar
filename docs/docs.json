@@ -71,6 +71,7 @@
                   "features/checkout/session"
                 ]
               },
+              "features/custom-fields",
               "features/discounts",
               "features/orders",
               "features/refunds",
@@ -92,7 +93,8 @@
                   "features/integrations/framer",
                   "features/integrations/zapier",
                   "features/integrations/paritydeals",
-                  "features/integrations/affonso"
+                  "features/integrations/affonso",
+                  "features/integrations/fernand"
                 ]
               }
             ]
@@ -170,6 +172,10 @@
         "icon": "rectangle-terminal",
         "groups": [
           {
+            "group": "General",
+            "pages": ["api-reference/rate-limits"]
+          },
+          {
             "group": "Core API",
             "pages": [
               {
@@ -232,7 +238,9 @@
                 "group": "Orders",
                 "pages": [
                   "api-reference/orders/get",
+                  "api-reference/orders/patch",
                   "api-reference/orders/list",
+                  "api-reference/orders/post-invoice",
                   "api-reference/orders/get-invoice"
                 ]
               },
@@ -358,7 +366,9 @@
                 "group": "Orders",
                 "pages": [
                   "api-reference/customer-portal/orders/get",
+                  "api-reference/customer-portal/orders/patch",
                   "api-reference/customer-portal/orders/list",
+                  "api-reference/customer-portal/orders/post-invoice",
                   "api-reference/customer-portal/orders/get-invoice"
                 ]
               },

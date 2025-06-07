@@ -44,6 +44,7 @@ from polar.models import (
     Order,
     OrderItem,
     Organization,
+    Payout,
     Product,
     ProductBenefit,
     ProductCustomField,
@@ -86,6 +87,7 @@ from polar.models.discount import (
 from polar.models.event import EventSource
 from polar.models.notification_recipient import NotificationRecipient
 from polar.models.order import OrderBillingReason, OrderStatus
+from polar.models.payout import PayoutStatus
 from polar.models.pledge import Pledge, PledgeState, PledgeType
 from polar.models.product_price import (
     ProductPriceAmountType,
@@ -113,6 +115,7 @@ async def create_organization(
     organization = Organization(
         name=name,
         slug=name,
+        customer_invoice_prefix=name.upper(),
         avatar_url="https://avatars.githubusercontent.com/u/105373340?s=200&v=4",
         **kwargs,
     )
@@ -272,10 +275,7 @@ async def user_organization(
     organization: Organization,
     user: User,
 ) -> UserOrganization:
-    user_organization = UserOrganization(
-        user_id=user.id,
-        organization_id=organization.id,
-    )
+    user_organization = UserOrganization(user=user, organization=organization)
     await save_fixture(user_organization)
     return user_organization
 
@@ -286,10 +286,7 @@ async def user_organization_second(
     organization: Organization,
     user_second: User,
 ) -> UserOrganization:
-    user_organization = UserOrganization(
-        user_id=user_second.id,
-        organization_id=organization.id,
-    )
+    user_organization = UserOrganization(user=user_second, organization=organization)
     await save_fixture(user_organization)
     return user_organization
 
@@ -300,29 +297,9 @@ async def user_organization_blocked(
     organization_blocked: Organization,
     user: User,
 ) -> UserOrganization:
-    user_organization = UserOrganization(
-        user_id=user.id,
-        organization_id=organization_blocked.id,
-    )
+    user_organization = UserOrganization(user=user, organization=organization_blocked)
     await save_fixture(user_organization)
     return user_organization
-
-
-@pytest_asyncio.fixture
-async def open_collective_account(save_fixture: SaveFixture, user: User) -> Account:
-    account = Account(
-        account_type=AccountType.open_collective,
-        admin_id=user.id,
-        open_collective_slug="polar",
-        country="US",
-        currency="USD",
-        is_details_submitted=True,
-        is_charges_enabled=True,
-        is_payouts_enabled=True,
-        business_type="fiscal_host",
-    )
-    await save_fixture(account)
-    return account
 
 
 @typing.overload
@@ -806,6 +783,9 @@ async def create_order(
     user_metadata: dict[str, Any] | None = None,
     created_at: datetime | None = None,
     custom_field_data: dict[str, Any] | None = None,
+    billing_name: str | None = None,
+    billing_address: Address | None = None,
+    invoice_number: str | None = None,
 ) -> Order:
     order = Order(
         created_at=created_at or utc_now(),
@@ -826,6 +806,9 @@ async def create_order(
         currency="usd",
         billing_reason=billing_reason,
         stripe_invoice_id=stripe_invoice_id,
+        billing_name=billing_name,
+        billing_address=billing_address,
+        invoice_number=invoice_number or rstr("INV-"),
         customer=customer,
         product=product,
         subscription=subscription,
@@ -1174,6 +1157,7 @@ async def create_checkout(
     expires_at: datetime | None = None,
     client_secret: str | None = None,
     user_metadata: dict[str, Any] = {},
+    customer_external_id: str | None = None,
     customer_metadata: dict[str, Any] = {},
     payment_processor_metadata: dict[str, Any] = {},
     amount: int | None = None,
@@ -1205,6 +1189,7 @@ async def create_checkout(
             "CHECKOUT_CLIENT_SECRET",
         ),
         user_metadata=user_metadata,
+        customer_external_id=customer_external_id,
         customer_metadata=customer_metadata,
         payment_processor_metadata=payment_processor_metadata,
         amount=amount,
@@ -1313,7 +1298,7 @@ async def organization_second_members(
     for _ in range(5):
         user = await create_user(save_fixture)
         user_organization = UserOrganization(
-            user_id=user.id, organization_id=organization_second.id
+            user=user, organization=organization_second
         )
         await save_fixture(user_organization)
         users.append(user)
@@ -1616,3 +1601,80 @@ async def create_notification_recipient(
     )
     await save_fixture(notification_recipient)
     return notification_recipient
+
+
+async def create_payout(
+    save_fixture: SaveFixture,
+    *,
+    account: Account,
+    transaction: Transaction | None = None,
+    status: PayoutStatus = PayoutStatus.pending,
+    amount: int = 1000,
+    fees_amount: int = 0,
+    currency: str = "usd",
+    account_currency: str = "usd",
+    account_amount: int = 1000,
+    created_at: datetime | None = None,
+    invoice_number: str | None = None,
+) -> Payout:
+    payout = Payout(
+        created_at=created_at,
+        account=account,
+        status=status,
+        processor=account.account_type,
+        currency=currency,
+        amount=amount,
+        fees_amount=fees_amount,
+        account_currency=account_currency,
+        account_amount=account_amount,
+        transaction=transaction,
+        invoice_number=invoice_number or rstr("POLAR-"),
+    )
+    await save_fixture(payout)
+    return payout
+
+
+async def create_account(
+    save_fixture: SaveFixture,
+    organization: Organization,
+    user: User,
+    *,
+    status: Account.Status = Account.Status.ACTIVE,
+    country: str = "US",
+    currency: str = "usd",
+    account_type: AccountType = AccountType.stripe,
+    stripe_id: str = "STRIPE_ID",
+    processor_fees_applicable: bool = True,
+    fee_basis_points: int | None = None,
+    fee_fixed: int | None = None,
+    is_payouts_enabled: bool = True,
+    billing_name: str | None = None,
+    billing_address: Address | None = None,
+) -> Account:
+    account = Account(
+        status=status,
+        account_type=account_type,
+        admin_id=user.id,
+        country=country,
+        currency=currency,
+        is_details_submitted=True,
+        is_charges_enabled=True,
+        is_payouts_enabled=is_payouts_enabled,
+        processor_fees_applicable=processor_fees_applicable,
+        stripe_id=stripe_id,
+        _platform_fee_percent=fee_basis_points,
+        _platform_fee_fixed=fee_fixed,
+        billing_name=billing_name,
+        billing_address=billing_address,
+    )
+    await save_fixture(account)
+    organization.account = account
+    await save_fixture(organization)
+    return account
+
+
+@pytest_asyncio.fixture
+async def account(
+    save_fixture: SaveFixture, organization: Organization, user: User
+) -> Account:
+    return await create_account(save_fixture, organization, user)
