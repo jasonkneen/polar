@@ -16,7 +16,8 @@ from polar.routing import APIRouter
 
 from . import auth, sorting
 from .schemas import Order as OrderSchema
-from .schemas import OrderID, OrderInvoice, OrderNotFound
+from .schemas import OrderID, OrderInvoice, OrderNotFound, OrderUpdate
+from .service import InvoiceAlreadyExists, MissingInvoiceBillingDetails, NotPaidOrder
 from .service import order as order_service
 
 router = APIRouter(prefix="/orders", tags=["orders", APITag.documented, APITag.mcp])
@@ -102,6 +103,56 @@ async def get(
     return order
 
 
+@router.patch(
+    "/{id}",
+    summary="Update Order",
+    response_model=OrderSchema,
+    responses={404: OrderNotFound},
+)
+async def update(
+    id: OrderID,
+    order_update: OrderUpdate,
+    auth_subject: auth.OrdersWrite,
+    session: AsyncSession = Depends(get_db_session),
+) -> Order:
+    """Update an order."""
+    order = await order_service.get(session, auth_subject, id)
+
+    if order is None:
+        raise ResourceNotFound()
+
+    return await order_service.update(session, order, order_update)
+
+
+@router.post(
+    "/{id}/invoice",
+    status_code=202,
+    summary="Generate Order Invoice",
+    responses={
+        409: {
+            "description": "Order already has an invoice.",
+            "model": InvoiceAlreadyExists.schema(),
+        },
+        422: {
+            "description": "Order is not paid or is missing billing name or address.",
+            "model": MissingInvoiceBillingDetails.schema() | NotPaidOrder.schema(),
+        },
+    },
+)
+async def generate_invoice(
+    id: OrderID,
+    auth_subject: auth.OrdersRead,
+    session: AsyncSession = Depends(get_db_session),
+) -> None:
+    """Trigger generation of an order's invoice."""
+    order = await order_service.get(session, auth_subject, id)
+
+    if order is None:
+        raise ResourceNotFound()
+
+    await order_service.trigger_invoice_generation(session, order)
+
+
 @router.get(
     "/{id}/invoice",
     summary="Get Order Invoice",
@@ -119,6 +170,4 @@ async def invoice(
     if order is None:
         raise ResourceNotFound()
 
-    invoice_url = await order_service.get_order_invoice_url(order)
-
-    return OrderInvoice(url=invoice_url)
+    return await order_service.get_order_invoice(order)

@@ -4,14 +4,14 @@ import { CustomerContextView } from '@/components/Customer/CustomerContextView'
 import { DashboardBody } from '@/components/Layout/DashboardLayout'
 import PaymentMethod from '@/components/PaymentMethod/PaymentMethod'
 import PaymentStatus from '@/components/PaymentStatus/PaymentStatus'
+import { ProductListItem } from '@/components/Products/ProductListItem'
 import { useCustomer } from '@/hooks/queries/customers'
 import { usePayments } from '@/hooks/queries/payments'
 import { schemas } from '@polar-sh/client'
 import { DataTable } from '@polar-sh/ui/components/atoms/DataTable'
 import FormattedDateTime from '@polar-sh/ui/components/atoms/FormattedDateTime'
-import ShadowBox from '@polar-sh/ui/components/atoms/ShadowBox'
-import React, { PropsWithChildren } from 'react'
-import { twMerge } from 'tailwind-merge'
+import { List } from '@polar-sh/ui/components/atoms/List'
+import React from 'react'
 
 interface ClientPageProps {
   organization: schemas['Organization']
@@ -50,22 +50,20 @@ const ClientPage: React.FC<ClientPageProps> = ({ organization, checkout }) => {
       }
       wide
     >
-      <ShadowBox className="dark:divide-polar-700 flex flex-col divide-y divide-gray-200 border-gray-200 bg-transparent p-0">
-        <div className="flex flex-col gap-6 p-8">
-          <div className="flex flex-col gap-1">
-            <DetailRow title="Products">
-              <span className="dark:text-polar-500 font-mono text-sm text-gray-500">
-                {checkout.products.map(({ name }) => name).join(', ')}
-              </span>
-            </DetailRow>
-          </div>
-        </div>
-      </ShadowBox>
+      <List size="small">
+        {checkout.products.map((product) => (
+          <ProductListItem
+            key={product.id}
+            organization={organization}
+            product={product}
+          />
+        ))}
+      </List>
 
       <div className="flex flex-col gap-6">
         <div className="flex flex-row items-center justify-between gap-x-8">
           <div className="flex flex-row items-center justify-between gap-x-6">
-            <h3 className="text-lg">Payment attempts</h3>
+            <h3 className="text-lg">Payment Attempts</h3>
           </div>
         </div>
 
@@ -81,7 +79,7 @@ const ClientPage: React.FC<ClientPageProps> = ({ organization, checkout }) => {
                 },
               }) => (
                 <FormattedDateTime
-                  dateStyle="short"
+                  dateStyle="medium"
                   resolution="time"
                   datetime={created_at}
                 />
@@ -106,28 +104,6 @@ const ClientPage: React.FC<ClientPageProps> = ({ organization, checkout }) => {
         />
       </div>
     </DashboardBody>
-  )
-}
-
-const DetailRow = ({
-  title,
-  children,
-  className,
-  titleClassName,
-}: PropsWithChildren<{
-  title: string
-  className?: string
-  titleClassName?: string
-}>) => {
-  return (
-    <div className={twMerge('flex flex-row justify-between gap-8', className)}>
-      <span
-        className={twMerge('dark:text-polar-500 text-gray-500', titleClassName)}
-      >
-        {title}
-      </span>
-      {children}
-    </div>
   )
 }
 

@@ -12,10 +12,11 @@ from fpdf import FPDF
 from fpdf.enums import Align, TableBordersLayout, XPos, YPos
 from fpdf.fonts import FontFace
 from pydantic import BaseModel
-from pydantic_extra_types.country import CountryAlpha2
 
+from polar.config import Environment, settings
 from polar.kit.address import Address
 from polar.kit.tax import TaxabilityReason, TaxRate
+from polar.kit.utils import utc_now
 from polar.models import Order
 
 
@@ -42,6 +43,11 @@ class InvoiceItem(BaseModel):
     amount: int
 
 
+class InvoiceHeadingItem(BaseModel):
+    label: str
+    value: str
+
+
 class Invoice(BaseModel):
     number: str
     date: datetime
@@ -59,6 +65,7 @@ class Invoice(BaseModel):
     currency: str
     items: list[InvoiceItem]
     notes: str | None = None
+    extra_heading_items: list[InvoiceHeadingItem] | None = None
 
     @property
     def formatted_subtotal_amount(self) -> str:
@@ -104,24 +111,28 @@ class Invoice(BaseModel):
 
         return label
 
+    @property
+    def heading_items(self) -> list[InvoiceHeadingItem]:
+        return [
+            InvoiceHeadingItem(label="Invoice number", value=self.number),
+            InvoiceHeadingItem(label="Date of issue", value=format_date(self.date)),
+            *(self.extra_heading_items or []),
+        ]
+
     @classmethod
     def from_order(cls, order: Order) -> Self:
-        # TODO: proper error
-        assert order.billing_name is not None, "Order must have a billing name"
-        assert order.billing_address is not None, "Order must have a billing address"
+        assert order.billing_name is not None
+        assert order.billing_address is not None
+        assert order.invoice_number is not None
 
         return cls(
-            number=str(order.id),  # TODO
+            number=order.invoice_number,
             date=order.created_at,
-            seller_name="Polar Software Inc",  # TODO: in settings
-            seller_address=Address(  # TODO: in settings
-                line1="123 Polar St",
-                city="San Francisco",
-                state="CA",
-                postal_code="94103",
-                country=CountryAlpha2("US"),
-            ),
+            seller_name=settings.INVOICES_NAME,
+            seller_address=settings.INVOICES_ADDRESS,
+            seller_additional_info=settings.INVOICES_ADDITIONAL_INFO,
             customer_name=order.billing_name,
+            customer_additional_info=order.tax_id[0] if order.tax_id else None,
             customer_address=order.billing_address,
             subtotal_amount=order.subtotal_amount,
             discount_amount=order.discount_amount,
@@ -180,7 +191,12 @@ class InvoiceGenerator(FPDF):
     totals_table_row_height: ClassVar[int] = 6
     """Height of each row in the totals table in points."""
 
-    def __init__(self, data: Invoice) -> None:
+    def __init__(
+        self,
+        data: Invoice,
+        heading_title: str = "Invoice",
+        add_sandbox_warning: bool = settings.ENV == Environment.sandbox,
+    ) -> None:
         super().__init__()
 
         self.add_font(self.font_name, fname=self.regular_font_file)
@@ -189,10 +205,25 @@ class InvoiceGenerator(FPDF):
 
         self.alias_nb_pages()
         self.data = data
+        self.heading_title = heading_title
+        self.add_sandbox_warning = add_sandbox_warning
 
     def cell_height(self, font_size: float | None = None) -> float:
         font_size = font_size or self.base_font_size
         return font_size * 0.35 * self.line_height_percentage
+
+    def header(self) -> None:
+        if self.add_sandbox_warning:
+            self.set_xy(0, 0)
+            self.set_fill_color(239, 177, 0)
+            self.cell(
+                self.w,
+                10,
+                "SANDBOX ENVIRONMENT: This invoice is for testing purposes only. No actual payment has been processed.",
+                align=Align.C,
+                fill=True,
+            )
+            self.ln(10)
 
     def footer(self) -> None:
         # Position footer at 15mm from bottom
@@ -204,12 +235,13 @@ class InvoiceGenerator(FPDF):
         self.cell(self.epw / 2, 10, f"Page {self.page_no()} of {{nb}}", align=Align.R)
 
     def generate(self) -> None:
+        self.set_metadata()
         self.add_page()
 
         # Title
         self.set_font(style="B", size=18)
         self.cell(
-            text="Invoice",
+            text=self.heading_title,
             new_x=XPos.LMARGIN,
             new_y=YPos.NEXT,
         )
@@ -219,28 +251,21 @@ class InvoiceGenerator(FPDF):
 
         self.set_y(self.get_y() + self.elements_y_margin)
 
-        # Invoice number and date
+        # Heading items
         label_width = 30
         self.set_font(size=self.base_font_size)
-        self.set_font(style="B")
-        self.cell(label_width, self.cell_height(), text="Invoice number", align=Align.L)
-        self.set_font(style="")
-        self.cell(
-            h=self.cell_height(),
-            text=self.data.number,
-            new_x=XPos.LMARGIN,
-            new_y=YPos.NEXT,
-        )
-
-        self.set_font(style="B")
-        self.cell(label_width, self.cell_height(), text="Date of issue", align=Align.L)
-        self.set_font(style="")
-        self.cell(
-            h=self.cell_height(),
-            text=format_date(self.data.date),
-            new_x=XPos.LMARGIN,
-            new_y=YPos.NEXT,
-        )
+        for heading_item in self.data.heading_items:
+            self.set_font(style="B")
+            self.cell(
+                label_width, self.cell_height(), text=heading_item.label, align=Align.L
+            )
+            self.set_font(style="")
+            self.cell(
+                h=self.cell_height(),
+                text=heading_item.value,
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT,
+            )
 
         # Billing addresses
         self.set_y(self.get_y() + self.elements_y_margin)
@@ -376,6 +401,13 @@ class InvoiceGenerator(FPDF):
                 text=self.data.notes,
                 markdown=True,
             )
+
+    def set_metadata(self) -> None:
+        """Set metadata for the PDF document."""
+        self.set_title(f"Invoice {self.data.number}")
+        self.set_creator("Polar")
+        self.set_author(settings.INVOICES_NAME)
+        self.set_creation_date(utc_now())
 
 
 __all__ = ["InvoiceGenerator", "Invoice", "InvoiceItem"]

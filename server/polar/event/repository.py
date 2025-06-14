@@ -13,10 +13,12 @@ from sqlalchemy import (
     or_,
     select,
 )
+from sqlalchemy.orm import joinedload
 
 from polar.auth.models import AuthSubject, Organization, User, is_organization, is_user
 from polar.kit.repository import RepositoryBase, RepositoryIDMixin
-from polar.models import Customer, Event, Meter, UserOrganization
+from polar.kit.repository.base import Options
+from polar.models import BillingEntry, Customer, Event, Meter, UserOrganization
 from polar.models.event import EventSource
 
 from .system import SystemEvent
@@ -32,6 +34,8 @@ class EventRepository(RepositoryBase[Event], RepositoryIDMixin[Event, UUID]):
         return await self.get_all(statement)
 
     async def insert_batch(self, events: Sequence[dict[str, Any]]) -> Sequence[UUID]:
+        if not events:
+            return []
         statement = insert(Event).returning(Event.id)
         result = await self.session.execute(statement, events)
         return result.scalars().all()
@@ -45,7 +49,7 @@ class EventRepository(RepositoryBase[Event], RepositoryIDMixin[Event, UUID]):
                 Event.customer == customer,
                 Event.source == EventSource.system,
                 Event.name == SystemEvent.meter_reset,
-                Event.user_metadata["meter_id"].astext == str(meter_id),
+                Event.user_metadata["meter_id"].as_string() == str(meter_id),
             )
             .order_by(Event.timestamp.desc())
             .limit(1)
@@ -123,7 +127,7 @@ class EventRepository(RepositoryBase[Event], RepositoryIDMixin[Event, UUID]):
         return and_(
             Event.source == EventSource.system,
             Event.name.in_((SystemEvent.meter_credited, SystemEvent.meter_reset)),
-            Event.user_metadata["meter_id"].astext == str(meter.id),
+            Event.user_metadata["meter_id"].as_string() == str(meter.id),
         )
 
     def get_meter_statement(self, meter: Meter) -> Select[tuple[Event]]:
@@ -131,3 +135,20 @@ class EventRepository(RepositoryBase[Event], RepositoryIDMixin[Event, UUID]):
             Event.organization_id == meter.organization_id,
             self.get_meter_clause(meter),
         )
+
+    def get_by_pending_entries_statement(
+        self, subscription: UUID, price: UUID
+    ) -> Select[tuple[Event]]:
+        return (
+            self.get_base_statement()
+            .join(BillingEntry, Event.id == BillingEntry.event_id)
+            .where(
+                BillingEntry.subscription_id == subscription,
+                BillingEntry.order_item_id.is_(None),
+                BillingEntry.product_price_id == price,
+            )
+            .order_by(Event.ingested_at.asc())
+        )
+
+    def get_eager_options(self) -> Options:
+        return (joinedload(Event.customer),)

@@ -37,7 +37,6 @@ def invoice() -> Invoice:
         taxability_reason=TaxabilityReason.standard_rated,
         tax_amount=18_00,
         tax_rate={
-            "stripe_id": "STRIPE_ID",
             "rate_type": "percentage",
             "display_name": "VAT",
             "basis_points": 2000,
@@ -60,7 +59,8 @@ def invoice() -> Invoice:
                 unit_amount=1_00,
                 amount=50_00,
             ),
-        ],
+        ]
+        * 100,
         notes=(
             """
 Thank you for your business!

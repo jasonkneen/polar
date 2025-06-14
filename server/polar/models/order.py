@@ -95,7 +95,7 @@ class Order(CustomFieldDataMixin, MetadataMixin, RecordModel):
     )
     billing_address: Mapped[Address | None] = mapped_column(AddressType, nullable=True)
     stripe_invoice_id: Mapped[str | None] = mapped_column(
-        String, nullable=True, unique=True
+        String, nullable=True, unique=True, default=None
     )
 
     taxability_reason: Mapped[TaxabilityReason | None] = mapped_column(
@@ -103,6 +103,14 @@ class Order(CustomFieldDataMixin, MetadataMixin, RecordModel):
     )
     tax_id: Mapped[TaxID | None] = mapped_column(TaxIDType, nullable=True, default=None)
     tax_rate: Mapped[TaxRate | None] = mapped_column(JSONB, nullable=True, default=None)
+    tax_transaction_processor_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, default=None
+    )
+
+    invoice_number: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    invoice_path: Mapped[str | None] = mapped_column(
+        String, nullable=True, default=None
+    )
 
     customer_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("customers.id"), nullable=False, index=True
@@ -241,3 +249,7 @@ class Order(CustomFieldDataMixin, MetadataMixin, RecordModel):
         self.status = new_status
         self.refunded_amount = new_amount
         self.refunded_tax_amount = new_tax_amount
+
+    @property
+    def is_invoice_generated(self) -> bool:
+        return self.invoice_path is not None

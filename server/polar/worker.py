@@ -9,6 +9,7 @@ from typing import Any, ParamSpec, TypeAlias, TypeVar
 
 import dramatiq
 import logfire
+import redis
 import structlog
 from apscheduler.triggers.cron import CronTrigger
 from dramatiq import actor as _actor
@@ -32,17 +33,13 @@ class SQLAlchemyMiddleware(dramatiq.Middleware):
     Middleware managing the lifecycle of the database engine and sessionmaker.
     """
 
-    _get_async_sessionmaker_context: contextvars.ContextVar[
-        AsyncSessionMakerType | None
-    ] = contextvars.ContextVar("polar.get_async_sessionmaker", default=None)
-
-    def __init__(self) -> None:
-        self.logger = dramatiq.get_logger(__name__, type(self))
+    _get_async_sessionmaker_context: contextvars.ContextVar[AsyncSessionMakerType] = (
+        contextvars.ContextVar("polar.get_async_sessionmaker")
+    )
 
     @classmethod
     def get_async_session(cls) -> contextlib.AbstractAsyncContextManager[AsyncSession]:
         _get_async_session_context = cls._get_async_sessionmaker_context.get()
-        assert _get_async_session_context is not None
         return _get_async_session_context()
 
     def before_worker_boot(
@@ -51,14 +48,13 @@ class SQLAlchemyMiddleware(dramatiq.Middleware):
         self.engine = create_async_engine("worker")
         self.async_sessionmaker = create_async_sessionmaker(self.engine)
         instrument_sqlalchemy(self.engine.sync_engine)
-        self.logger.info("Created database engine")
+        log.info("Created database engine")
 
     def after_worker_shutdown(
         self, broker: dramatiq.Broker, worker: dramatiq.Worker
     ) -> None:
         event_loop_thread = get_event_loop_thread()
         assert event_loop_thread is not None
-        self._get_async_sessionmaker_context.set(None)
         event_loop_thread.run_coroutine(self._dispose_engine())
 
     def after_worker_thread_boot(
@@ -66,14 +62,9 @@ class SQLAlchemyMiddleware(dramatiq.Middleware):
     ) -> None:
         self._get_async_sessionmaker_context.set(self.async_sessionmaker)
 
-    def before_worker_thread_shutdown(
-        self, broker: dramatiq.Broker, thread: threading.Thread
-    ) -> None:
-        self._get_async_sessionmaker_context.set(None)
-
     async def _dispose_engine(self) -> None:
         await self.engine.dispose()
-        self.logger.info("Database engine disposed")
+        log.info("Database engine disposed")
 
 
 @contextlib.asynccontextmanager
@@ -96,19 +87,16 @@ class RedisMiddleware(dramatiq.Middleware):
     Middleware managing the lifecycle of the Redis connection.
     """
 
-    _redis_context: contextvars.ContextVar[Redis | None] = contextvars.ContextVar(
-        "polar.redis", default=None
+    _redis_context: contextvars.ContextVar[Redis] = contextvars.ContextVar(
+        "polar.redis"
     )
 
     def __init__(self) -> None:
-        self.logger = dramatiq.get_logger(__name__, type(self))
         self._stack = contextlib.AsyncExitStack()
 
     @classmethod
     def get(cls) -> Redis:
-        _redis_context = cls._redis_context.get()
-        assert _redis_context is not None
-        return _redis_context
+        return cls._redis_context.get()
 
     def before_worker_boot(
         self, broker: dramatiq.Broker, worker: dramatiq.Worker
@@ -116,29 +104,23 @@ class RedisMiddleware(dramatiq.Middleware):
         event_loop_thread = get_event_loop_thread()
         assert event_loop_thread is not None
         event_loop_thread.run_coroutine(self._open())
-        self.logger.info("Opened Redis connection")
+        log.info("Opened Redis connection")
 
     def after_worker_shutdown(
         self, broker: dramatiq.Broker, worker: dramatiq.Worker
     ) -> None:
         event_loop_thread = get_event_loop_thread()
         assert event_loop_thread is not None
-        self._redis_context.set(None)
         event_loop_thread.run_coroutine(self._close())
-        self.logger.info("Closed Redis connection")
+        log.info("Closed Redis connection")
 
     def after_worker_thread_boot(
         self, broker: dramatiq.Broker, thread: threading.Thread
     ) -> None:
         self._redis_context.set(self.redis)
 
-    def before_worker_thread_shutdown(
-        self, broker: dramatiq.Broker, thread: threading.Thread
-    ) -> None:
-        self._redis_context.set(None)
-
     async def _open(self) -> None:
-        self.redis = await self._stack.enter_async_context(create_redis())
+        self.redis = await self._stack.enter_async_context(create_redis("worker"))
 
     async def _close(self) -> None:
         await self._stack.aclose()
@@ -165,12 +147,8 @@ class EnqueuedJobsMiddleware(dramatiq.Middleware):
     and flushing them to Redis when the message is processed.
     """
 
-    _enqueued_jobs = contextvars.ContextVar[list[JobToEnqueue]](
-        "polar.enqueued_jobs", default=[]
-    )
-    _ingested_events = contextvars.ContextVar[list[uuid.UUID]](
-        "polar.ingested_events", default=[]
-    )
+    _enqueued_jobs = contextvars.ContextVar[list[JobToEnqueue]]("polar.enqueued_jobs")
+    _ingested_events = contextvars.ContextVar[list[uuid.UUID]]("polar.ingested_events")
 
     @classmethod
     def get_enqueued_jobs_context(
@@ -193,11 +171,11 @@ class EnqueuedJobsMiddleware(dramatiq.Middleware):
     def before_process_message(
         self, broker: dramatiq.Broker, message: dramatiq.Message[Any]
     ) -> None:
-        enqueued_jobs = self._enqueued_jobs.get()
+        enqueued_jobs = self._enqueued_jobs.get([])
         assert enqueued_jobs == [], (
             "Enqueued jobs should be empty before processing a message"
         )
-        ingested_events = self._ingested_events.get()
+        ingested_events = self._ingested_events.get([])
         assert ingested_events == [], (
             "Ingested events should be empty before processing a message"
         )
@@ -220,6 +198,12 @@ class EnqueuedJobsMiddleware(dramatiq.Middleware):
         self._enqueued_jobs.set([])
         self._ingested_events.set([])
 
+    def after_skip_message(
+        self, broker: dramatiq.Broker, message: dramatiq.Message[Any]
+    ) -> None:
+        self._enqueued_jobs.set([])
+        self._ingested_events.set([])
+
 
 def enqueue_job(
     actor: str, *args: JSONSerializable, **kwargs: JSONSerializable
@@ -229,7 +213,7 @@ def enqueue_job(
     enqueued_jobs_list = enqueued_jobs_context.get([])
     enqueued_jobs_list.append((actor, args, kwargs))
     enqueued_jobs_context.set(enqueued_jobs_list)
-    log.debug("polar.worker.job_enqueued", actor=actor, args=args, kwargs=kwargs)
+    log.debug("polar.worker.job_enqueued", actor=actor)
 
 
 async def flush_enqueued_jobs(broker: dramatiq.Broker, redis: Redis) -> None:
@@ -238,15 +222,16 @@ async def flush_enqueued_jobs(broker: dramatiq.Broker, redis: Redis) -> None:
 
     for actor_name, args, kwargs in enqueued_jobs_context.get([]):
         fn: dramatiq.Actor[Any, Any] = broker.get_actor(actor_name)
-        message = fn.message_with_options(args=args, kwargs=kwargs)
         redis_message_id = str(uuid.uuid4())
-        message = message.copy(options={"redis_message_id": redis_message_id})
+        message = fn.message_with_options(
+            args=args, kwargs=kwargs, redis_message_id=redis_message_id
+        )
         await redis.hset(
             f"dramatiq:{message.queue_name}.msgs", redis_message_id, message.encode()
         )
         await redis.rpush(f"dramatiq:{message.queue_name}", redis_message_id)
         log.debug(
-            "polar.worker.job_flushed", actor=fn.actor_name, args=args, kwargs=kwargs
+            "polar.worker.job_flushed", actor=fn.actor_name, message=message.encode()
         )
 
     enqueued_jobs_context.set([])
@@ -317,12 +302,6 @@ scheduler_middleware = SchedulerMiddleware()
 class LogfireMiddleware(dramatiq.Middleware):
     """Middleware to manage a Logfire span when handling a message."""
 
-    _logfire_span_stack: contextvars.ContextVar[contextlib.ExitStack] = (
-        contextvars.ContextVar(
-            "polar.logfire_span_stack", default=contextlib.ExitStack()
-        )
-    )
-
     def before_worker_boot(
         self, broker: dramatiq.Broker, worker: dramatiq.Worker
     ) -> None:
@@ -331,12 +310,13 @@ class LogfireMiddleware(dramatiq.Middleware):
     def before_process_message(
         self, broker: dramatiq.Broker, message: dramatiq.Message[Any]
     ) -> None:
-        logfire_span_stack = self._logfire_span_stack.get()
+        logfire_span_stack = contextlib.ExitStack()
         logfire_span = logfire_span_stack.enter_context(
             logfire.span(
                 "TASK {actor}", actor=message.actor_name, message=message.asdict()
             )
         )
+        message.options["logfire_span_stack"] = logfire_span_stack
 
     def after_process_message(
         self,
@@ -346,23 +326,36 @@ class LogfireMiddleware(dramatiq.Middleware):
         result: Any | None = None,
         exception: Exception | None = None,
     ) -> None:
-        logfire_span_stack = self._logfire_span_stack.get()
-        logfire_span_stack.close()
-        self._logfire_span_stack.set(contextlib.ExitStack())
+        logfire_span_stack: contextlib.ExitStack | None = message.options.pop(
+            "logfire_span_stack", None
+        )
+        if logfire_span_stack is not None:
+            logfire_span_stack.close()
+
+    def after_skip_message(
+        self, broker: dramatiq.Broker, message: dramatiq.Message[Any]
+    ) -> None:
+        return self.after_process_message(broker, message)
+
+
+def _json_obj_serializer(obj: Any) -> Any:
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
 class JSONEncoder(dramatiq.JSONEncoder):
     def encode(self, data: dict[str, Any]) -> bytes:
-        def default(obj: Any) -> Any:
-            if isinstance(obj, uuid.UUID):
-                return str(obj)
-            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
-
-        return json.dumps(data, separators=(",", ":"), default=default).encode("utf-8")
+        return json.dumps(
+            data, separators=(",", ":"), default=_json_obj_serializer
+        ).encode("utf-8")
 
 
 broker = RedisBroker(
-    url=settings.redis_url,
+    connection_pool=redis.ConnectionPool.from_url(
+        settings.redis_url,
+        client_name=f"{settings.ENV.value}.worker.dramatiq",
+    ),
     # Override default middlewares
     middleware=[
         m()

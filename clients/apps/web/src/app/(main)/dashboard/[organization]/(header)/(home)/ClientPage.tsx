@@ -1,5 +1,6 @@
 'use client'
 
+import LogoIcon from '@/components/Brand/LogoIcon'
 import { DashboardBody } from '@/components/Layout/DashboardLayout'
 import MetricChartBox from '@/components/Metrics/MetricChartBox'
 import { Well, WellContent, WellHeader } from '@/components/Shared/Well'
@@ -15,7 +16,7 @@ import {
   getChartRangeParams,
   getPreviousParams,
 } from '@/utils/metrics'
-import { DonutLargeOutlined } from '@mui/icons-material'
+import { ArrowOutwardOutlined, DonutLargeOutlined } from '@mui/icons-material'
 import { schemas } from '@polar-sh/client'
 import Button from '@polar-sh/ui/components/atoms/Button'
 import { motion } from 'framer-motion'
@@ -98,8 +99,20 @@ export default function OverviewPage({ organization }: OverviewPageProps) {
   const cardClassName = 'flex w-full flex-col'
 
   return (
-    <DashboardBody className="gap-y-16 pb-16">
+    <DashboardBody className="gap-y-8 pb-16 md:gap-y-16">
       <UsageBasedBillingBanner />
+      <div className="dark:bg-polar-900 dark:border-polar-800 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 text-sm md:hidden">
+        <LogoIcon size={24} />
+        <span>Polar for iOS is now available on TestFlight!</span>
+        <Link
+          href="https://testflight.apple.com/join/CwVdc1Jt"
+          target="_blank"
+          className="dark:bg-polar-800 dark:hover:bg-polar-700 self-start rounded-sm bg-gray-100 p-1 text-xs transition-colors hover:bg-gray-200"
+        >
+          <span>Join Beta</span>
+          <ArrowOutwardOutlined className="ml-2" fontSize="inherit" />
+        </Link>
+      </div>
       <HeroChart organization={organization} />
       <motion.div
         className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-10"
@@ -109,7 +122,7 @@ export default function OverviewPage({ organization }: OverviewPageProps) {
         transition={{ staggerChildren: 0.1 }}
       >
         <motion.div
-          className={twMerge(cardClassName, 'col-span-2')}
+          className={twMerge(cardClassName, 'col-span-2 hidden md:flex')}
           {...motionVariants}
         >
           <ActivityWidget />
@@ -150,7 +163,7 @@ const UsageBasedBillingBanner = () => {
   }
 
   return (
-    <Well className="shadow-3xl flex flex-row items-center justify-between gap-x-6 bg-white p-6">
+    <Well className="shadow-3xl hidden items-start gap-6 bg-white p-6 md:flex md:flex-row md:items-center md:justify-between">
       <div className="flex flex-col gap-y-2">
         <WellHeader className="flex flex-row items-center gap-x-2">
           <DonutLargeOutlined fontSize="small" className="text-blue-500" />
@@ -165,7 +178,7 @@ const UsageBasedBillingBanner = () => {
           </p>
         </WellContent>
       </div>
-      <div className="flex flex-row items-center gap-x-4">
+      <div className="flex flex-row-reverse gap-x-4 md:flex-row md:items-center">
         <Link
           href="https://docs.polar.sh/features/usage-based-billing/introduction"
           target="_blank"

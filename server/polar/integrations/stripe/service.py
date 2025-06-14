@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
-from typing import TYPE_CHECKING, Literal, Unpack, cast
+from typing import TYPE_CHECKING, Literal, Unpack, cast, overload
 
 import stripe as stripe_lib
 
@@ -297,6 +297,20 @@ class StripeService:
             ):
                 raise MissingPaymentMethod(id)
             raise
+
+    async def update_subscription_discount(
+        self, id: str, old_coupon: str | None, new_coupon: str | None
+    ) -> stripe_lib.Subscription:
+        if old_coupon is not None:
+            await stripe_lib.Subscription.delete_discount_async(id)
+
+        modify_discount_params: list[stripe_lib.Subscription.ModifyParamsDiscount] = []
+        if new_coupon is not None:
+            modify_discount_params.append({"coupon": new_coupon})
+
+        return await stripe_lib.Subscription.modify_async(
+            id, discounts=modify_discount_params
+        )
 
     async def uncancel_subscription(self, id: str) -> stripe_lib.Subscription:
         return await stripe_lib.Subscription.modify_async(
@@ -708,13 +722,21 @@ class StripeService:
             )
             item_map[invoice_item.id] = (price, invoice_item)
 
-        invoice = await stripe_lib.Invoice.finalize_invoice_async(
-            invoice_id,
-            idempotency_key=(
-                f"{idempotency_key}_finalize_invoice" if idempotency_key else None
-            ),
-            expand=["total_tax_amounts.tax_rate"],
+        # Manually retrieve the invoice, as we've seen cases where finalization below
+        # failed because the idempotency request returned us a draft invoice,
+        # but the invoice was actually already finalized.
+        invoice = await stripe_lib.Invoice.retrieve_async(
+            invoice_id, expand=["total_tax_amounts.tax_rate"]
         )
+
+        if invoice.status == "draft":
+            invoice = await stripe_lib.Invoice.finalize_invoice_async(
+                invoice_id,
+                idempotency_key=(
+                    f"{idempotency_key}_finalize_invoice" if idempotency_key else None
+                ),
+                expand=["total_tax_amounts.tax_rate"],
+            )
 
         if invoice.status == "open":
             await stripe_lib.Invoice.pay_async(
@@ -759,6 +781,49 @@ class StripeService:
         **params: Unpack[stripe_lib.tax.Calculation.CreateParams],
     ) -> stripe_lib.tax.Calculation:
         return await stripe_lib.tax.Calculation.create_async(**params)
+
+    async def get_tax_calculation(self, id: str) -> stripe_lib.tax.Calculation:
+        return await stripe_lib.tax.Calculation.retrieve_async(id)
+
+    async def create_tax_transaction(
+        self, calculation_id: str, reference: str
+    ) -> stripe_lib.tax.Transaction:
+        return await stripe_lib.tax.Transaction.create_from_calculation_async(
+            calculation=calculation_id,
+            reference=reference,
+            idempotency_key=f"polar:tax_transaction:{reference}",
+        )
+
+    @overload
+    async def revert_tax_transaction(
+        self, original_transaction_id: str, mode: Literal["full"], reference: str
+    ) -> stripe_lib.tax.Transaction: ...
+
+    @overload
+    async def revert_tax_transaction(
+        self,
+        original_transaction_id: str,
+        mode: Literal["partial"],
+        reference: str,
+        amount: int,
+    ) -> stripe_lib.tax.Transaction: ...
+
+    async def revert_tax_transaction(
+        self,
+        original_transaction_id: str,
+        mode: Literal["full", "partial"],
+        reference: str,
+        amount: int | None = None,
+    ) -> stripe_lib.tax.Transaction:
+        params: stripe_lib.tax.Transaction.CreateReversalParams = {
+            "mode": mode,
+            "original_transaction": original_transaction_id,
+            "reference": reference,
+            "idempotency_key": f"polar:tax_transaction_revert:{reference}",
+        }
+        if mode == "partial" and amount is not None:
+            params["flat_amount"] = amount
+        return await stripe_lib.tax.Transaction.create_reversal_async(**params)
 
     async def create_coupon(
         self, **params: Unpack[stripe_lib.Coupon.CreateParams]

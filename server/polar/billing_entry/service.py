@@ -6,11 +6,11 @@ from datetime import datetime
 
 from sqlalchemy.orm import joinedload
 
-from polar.event.system import is_meter_credit_event
+from polar.event.repository import EventRepository
 from polar.integrations.stripe.service import stripe as stripe_service
 from polar.kit.math import non_negative_running_sum
 from polar.meter.service import meter as meter_service
-from polar.models import BillingEntry, OrderItem, Subscription
+from polar.models import BillingEntry, Event, OrderItem, Subscription
 from polar.models.event import EventSource
 from polar.postgres import AsyncSession
 from polar.product.guard import MeteredPrice, is_metered_price
@@ -89,10 +89,7 @@ class BillingEntryService:
         repository = BillingEntryRepository.from_session(session)
         pending_entries = await repository.get_pending_by_subscription(
             subscription.id,
-            options=(
-                joinedload(BillingEntry.product_price),
-                joinedload(BillingEntry.event),
-            ),
+            options=(joinedload(BillingEntry.product_price),),
         )
         entries_by_price = itertools.groupby(
             pending_entries, lambda entry: entry.product_price
@@ -105,7 +102,7 @@ class BillingEntryService:
 
             entries_list = list(entries)
             metered_line_item = await self._get_metered_line_item(
-                session, price, entries_list
+                session, price, subscription, entries_list
             )
             items.append((metered_line_item, entries_list))
 
@@ -115,20 +112,25 @@ class BillingEntryService:
         self,
         session: AsyncSession,
         price: MeteredPrice,
+        subscription: Subscription,
         entries: Sequence[BillingEntry],
     ) -> MeteredLineItem:
-        meter_events = [
-            entry.event_id
-            for entry in entries
-            if entry.event.source == EventSource.user
-        ]
-        credit_events = sorted(
-            [entry.event for entry in entries if is_meter_credit_event(entry.event)],
-            key=lambda event: event.timestamp,
+        event_repository = EventRepository.from_session(session)
+        events_statement = event_repository.get_by_pending_entries_statement(
+            subscription.id, price.id
         )
-
         meter = price.meter
-        units = await meter_service.get_quantity(session, meter, meter_events)
+        units = await meter_service.get_quantity(
+            session,
+            meter,
+            events_statement.with_only_columns(Event.id).where(
+                Event.source == EventSource.user
+            ),
+        )
+        credit_events_statement = events_statement.where(
+            Event.is_meter_credit.is_(True)
+        )
+        credit_events = await event_repository.get_all(credit_events_statement)
         credited_units = non_negative_running_sum(
             event.user_metadata["units"] for event in credit_events
         )

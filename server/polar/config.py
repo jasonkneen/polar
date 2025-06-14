@@ -6,8 +6,10 @@ from typing import Annotated, Literal
 
 from annotated_types import Ge
 from pydantic import AfterValidator, DirectoryPath, Field, PostgresDsn
+from pydantic_extra_types.country import CountryAlpha2
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from polar.kit.address import Address
 from polar.kit.jwk import JWKSFile
 
 
@@ -202,10 +204,27 @@ class Settings(BaseSettings):
     MINIO_USER: str = "polar"
     MINIO_PWD: str = "polarpolar"
 
+    # Invoices
+    S3_CUSTOMER_INVOICES_BUCKET_NAME: str = "polar-customer-invoices"
+    S3_PAYOUT_INVOICES_BUCKET_NAME: str = "polar-payout-invoices"
+    INVOICES_NAME: str = "Polar Software, Inc."
+    INVOICES_ADDRESS: Address = Address(
+        line1="548 Market St",
+        line2="PMB 61301",
+        postal_code="94104",
+        city="San Francisco",
+        state="CA",
+        country=CountryAlpha2("US"),
+    )
+    INVOICES_ADDITIONAL_INFO: str | None = (
+        "[support@polar.sh](mailto:support@polar.sh)\n"
+    )
+    PAYOUT_INVOICES_PREFIX: str = "POLAR-"
+
     # Application behaviours
     API_PAGINATION_MAX_LIMIT: int = 100
 
-    ACCOUNT_PAYOUT_DELAY: timedelta = timedelta(days=1)
+    ACCOUNT_PAYOUT_DELAY: timedelta = timedelta(seconds=1)
     ACCOUNT_PAYOUT_MINIMUM_BALANCE: int = 1000
 
     PLATFORM_FEE_BASIS_POINTS: int = 400
