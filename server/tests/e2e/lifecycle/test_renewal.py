@@ -2,81 +2,80 @@
 E2E: Lifecycle — subscription renewal.
 
 An active subscription reaches the end of its billing period.
-The scheduler enqueues subscription.cycle → billing entries created →
-order.create_subscription_order runs → new order with billing_reason=subscription_cycle.
+The scheduler picks it up via SubscriptionJobStore → enqueues subscription.cycle →
+billing entries created → order.create_subscription_order runs →
+new order with billing_reason=subscription_cycle.
+
+Uses freezegun to control time so the scheduler's cron job picker logic is
+exercised with realistic time progression instead of manual date manipulation.
 """
 
-from datetime import UTC, datetime, timedelta
-
+import freezegun
 import pytest
 from httpx import AsyncClient
 
 from polar.kit.db.postgres import AsyncSession
 from polar.models import Organization, Product
-from polar.subscription.repository import SubscriptionRepository
 from tests.e2e.conftest import E2E_AUTH
-from tests.e2e.infra import DrainFn, StripeSimulator
-from tests.e2e.lifecycle.conftest import trigger_subscription_cycle
+from tests.e2e.infra import DrainFn, SchedulerSimulator, StripeSimulator
 from tests.e2e.purchase.conftest import complete_purchase
+
+# Purchase happens on Jan 15 → monthly sub ends Feb 15
+PURCHASE_DATE = "2024-01-15 12:00:00"
 
 
 @pytest.mark.asyncio
 class TestRenewal:
     @E2E_AUTH
-    async def test_subscription_cycle_creates_order(
+    async def test_multiple_cycles(
         self,
         client: AsyncClient,
         session: AsyncSession,
         stripe_sim: StripeSimulator,
         drain: DrainFn,
+        scheduler_sim: SchedulerSimulator,
         organization: Organization,
         monthly_product: Product,
     ) -> None:
-        # Given an active subscription created via a real purchase
-        purchase = await complete_purchase(
-            client,
-            session,
-            stripe_sim,
-            drain,
-            organization,
-            monthly_product,
-            amount=1500,
-        )
+        # Given: purchase a subscription
+        with freezegun.freeze_time(PURCHASE_DATE):
+            await complete_purchase(
+                client,
+                session,
+                stripe_sim,
+                drain,
+                organization,
+                monthly_product,
+                amount=1500,
+            )
 
-        # Get the subscription and advance its period end to now
-        response = await client.get("/v1/subscriptions/")
-        assert response.status_code == 200
-        subs = response.json()
-        assert subs["pagination"]["total_count"] == 1
-        subscription_id = subs["items"][0]["id"]
+        # Run 3 consecutive monthly cycles
+        cycle_dates = [
+            "2024-02-15 12:00:01",  # 1st renewal
+            "2024-03-15 12:00:01",  # 2nd renewal
+            "2024-04-15 12:00:01",  # 3rd renewal
+        ]
 
-        # Simulate time passing: set period end to now so cycle triggers
-        sub_repo = SubscriptionRepository.from_session(session)
-        subscription = await sub_repo.get_by_id(
-            subscription_id, options=sub_repo.get_eager_options()
-        )
-        assert subscription is not None
-        now = datetime.now(UTC)
-        subscription.current_period_start = now - timedelta(days=30)
-        subscription.current_period_end = now
-        await session.flush()
+        for cycle_date in cycle_dates:
+            with freezegun.freeze_time(cycle_date):
+                assert await scheduler_sim.get_due_count() == 1, (
+                    f"Expected 1 due sub at {cycle_date}"
+                )
+                await scheduler_sim.trigger_due_cycles(drain)
 
-        # When the scheduler triggers the cycle
-        await trigger_subscription_cycle(session, drain, subscription.id)
-
-        # Then a renewal order is created (in addition to the original purchase order)
-        response = await client.get("/v1/orders/")
+        # Verify all orders exist: 1 creation + 3 renewals = 4 total
+        response = await client.get("/v1/orders/", params={"limit": 10})
         assert response.status_code == 200
         orders = response.json()
-        assert orders["pagination"]["total_count"] == 2
+        assert orders["pagination"]["total_count"] == 4
 
-        # Most recent order is the renewal
-        billing_reasons = {o["billing_reason"] for o in orders["items"]}
-        assert "subscription_create" in billing_reasons
-        assert "subscription_cycle" in billing_reasons
-
-        renewal_order = next(
+        cycle_orders = [
             o for o in orders["items"] if o["billing_reason"] == "subscription_cycle"
-        )
-        assert renewal_order["product"]["id"] == str(monthly_product.id)
-        assert renewal_order["amount"] == 1500
+        ]
+        assert len(cycle_orders) == 3
+
+        # Subscription period should now be Apr 15 → May 15
+        response = await client.get("/v1/subscriptions/")
+        sub = response.json()["items"][0]
+        assert sub["current_period_start"].startswith("2024-04-15")
+        assert sub["current_period_end"].startswith("2024-05-15")
