@@ -34,9 +34,6 @@ export default function ClientPage({
     hide: hideSetupModal,
   } = useModal()
 
-  const [requireDetails, setRequireDetails] = useState(
-    !organization.details_submitted_at,
-  )
   const identityVerificationStatus = currentUser?.identity_verification_status
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollingInitialStatusRef = useRef<string | undefined | null>(null)
@@ -49,14 +46,33 @@ export default function ClientPage({
     accountError &&
     (accountError as ClientResponseError)?.response?.status === 403
 
-  const isApproved =
-    organization.status === 'denied'
-      ? false // Explicit denial always takes precedence, if not, fall back to checking for approval conditions
-      : reviewStatus?.verdict === 'PASS' ||
-        reviewStatus?.appeal_decision === 'approved' ||
-        ['active', 'initial_review', 'ongoing_review'].includes(
-          organization.status,
-        )
+  const isGrandfathered =
+    reviewStatus?.verdict === 'PASS' &&
+    reviewStatus?.reason === 'Grandfathered organization'
+
+  const isDenied = organization.status === 'denied'
+
+  const isActive = ['active', 'initial_review', 'ongoing_review'].includes(
+    organization.status,
+  )
+
+  const [hasSubmittedDetails, setHasSubmittedDetails] = useState(
+    !!organization.details_submitted_at,
+  )
+
+  const handleDetailsSubmitted = useCallback(() => {
+    setHasSubmittedDetails(true)
+  }, [])
+
+  const requireDetails =
+    !hasSubmittedDetails &&
+    (!isGrandfathered || (isGrandfathered && !isActive && !isDenied))
+
+  const isApproved = isDenied
+    ? false // Explicit denial always takes precedence, if not, fall back to checking for approval conditions
+    : reviewStatus?.verdict === 'PASS' ||
+      reviewStatus?.appeal_decision === 'approved' ||
+      isActive
 
   const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY || '')
   const createIdentityVerification = useCreateIdentityVerification()
@@ -146,10 +162,6 @@ export default function ClientPage({
     }
   }, [])
 
-  const handleDetailsSubmitted = useCallback(() => {
-    setRequireDetails(false)
-  }, [])
-
   const handleStartAccountSetup = useCallback(async () => {
     if (!organizationAccount || !organizationAccount.stripe_id) {
       showSetupModal()
@@ -178,7 +190,7 @@ export default function ClientPage({
             title="Account Review"
             description={
               requireDetails
-                ? 'Tell us about your organization so we can review the usecase.'
+                ? 'Tell us about your organization so we can review your usecase.'
                 : 'Your submitted organization details and compliance status.'
             }
           />
@@ -188,6 +200,17 @@ export default function ClientPage({
               kyc={true}
               onSubmitted={handleDetailsSubmitted}
             />
+          ) : isDenied ? (
+            <div className="dark:bg-polar-800 rounded-2xl border bg-white p-8 text-center">
+              <span className="dark:bg-polar-700 mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
+                <CheckIcon className="dark:text-polar-400 h-4 w-4 text-gray-500" />
+              </span>
+              <h4 className="mb-2 font-medium">Account denied</h4>
+              <p className="dark:text-polar-400 mx-auto max-w-sm text-sm text-balance text-gray-600">
+                You have been denied access to Polar. If you believe this is a
+                mistake, please contact support for further assistance.
+              </p>
+            </div>
           ) : isApproved ? (
             <div className="dark:bg-polar-800 rounded-2xl border bg-white p-8 text-center">
               <span className="dark:bg-polar-700 mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
