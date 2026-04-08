@@ -56,6 +56,23 @@ class PaymentTrigger(StrEnum):
     retry_payment_method_update = "retry_payment_method_update"
 
 
+# Triggers that count toward the dunning ceiling — i.e. failures from these
+# attempts use up the customer's automated retry budget.
+DUNNING_COUNTING_TRIGGERS: set[PaymentTrigger] = {
+    PaymentTrigger.purchase,
+    PaymentTrigger.retry_dunning,
+}
+
+# Triggers explicitly excluded from the dunning ceiling — one-shot recovery
+# attempts that shouldn't shorten the dunning window. Together with
+# ``DUNNING_COUNTING_TRIGGERS`` these must cover every ``PaymentTrigger``
+# value (enforced by ``test_every_payment_trigger_is_classified``).
+DUNNING_NON_COUNTING_TRIGGERS: set[PaymentTrigger] = {
+    PaymentTrigger.retry_customer,
+    PaymentTrigger.retry_payment_method_update,
+}
+
+
 class PaymentStatus(StrEnum):
     pending = "pending"
     succeeded = "succeeded"
