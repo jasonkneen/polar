@@ -239,10 +239,7 @@ async def get_setup_verdict_data(
     )
 
     # Check account charges and payouts enabled
-    (
-        account_charges_enabled,
-        account_payouts_enabled,
-    ) = await analytics_service.check_account_enabled(organization)
+    payouts_enabled = await analytics_service.check_payout_account_enabled(organization)
 
     # Calculate setup score using helper
     setup_score = analytics_service.calculate_setup_score(
@@ -252,8 +249,7 @@ async def get_setup_verdict_data(
         products_count=products_count,
         benefits_count=benefits_count,
         user_verified=user_verified,
-        account_charges_enabled=account_charges_enabled,
-        account_payouts_enabled=account_payouts_enabled,
+        payouts_enabled=payouts_enabled,
     )
 
     return SetupVerdictData(
@@ -263,8 +259,7 @@ async def get_setup_verdict_data(
         products_count=products_count,
         benefits_count=benefits_count,
         user_verified=user_verified,
-        account_charges_enabled=account_charges_enabled,
-        account_payouts_enabled=account_payouts_enabled,
+        payouts_enabled=payouts_enabled,
         setup_score=setup_score,
         benefits_configured=benefits_count > 0,
         webhooks_configured=webhooks_count > 0,
@@ -300,7 +295,7 @@ async def list(
     repository = OrganizationRepository.from_session(session)
     statement = (
         repository.get_base_statement(include_deleted=True)
-        .join(Account, Organization.account_id == Account.id, isouter=True)
+        .join(Account, Organization.account_id == Account.id)
         .options(
             contains_eager(Organization.account),
         )
@@ -1011,6 +1006,7 @@ async def get(
         id,
         options=(
             joinedload(Organization.account),
+            joinedload(Organization.payout_account),
             joinedload(Organization.review),
         ),
         include_deleted=True,
@@ -1022,8 +1018,6 @@ async def get(
 
     user_repository = UserRepository.from_session(session)
     users = await user_repository.get_all_by_organization(organization.id)
-
-    account = organization.account
 
     # Get setup, payment, and organization verdicts for account review sections
     setup_verdict_data = await get_setup_verdict_data(organization, session)
@@ -1283,11 +1277,9 @@ async def get(
                                 text(f"Team Members ({len(users)})")
 
                         # Check if current organization has admin
-                        admin_user = None
-                        if organization.account_id:
-                            admin_user = await repository.get_admin_user(
-                                session, organization
-                            )
+                        admin_user = await repository.get_admin_user(
+                            session, organization
+                        )
 
                         if users:
                             # Users table
