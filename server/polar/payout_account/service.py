@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
 import stripe as stripe_lib
 
@@ -22,13 +23,6 @@ class PayoutAccountServiceError(PolarError):
     pass
 
 
-class PayoutAccountAlreadyExists(PayoutAccountServiceError):
-    def __init__(self, organization_id: uuid.UUID) -> None:
-        self.organization_id = organization_id
-        message = f"Organization {organization_id} already has a payout account"
-        super().__init__(message, 409)
-
-
 class PayoutAccountExternalIdDoesNotExist(PayoutAccountServiceError):
     def __init__(self, external_id: str) -> None:
         self.external_id = external_id
@@ -43,7 +37,43 @@ class PayoutAccountExternalLinkUnsupported(PayoutAccountServiceError):
         super().__init__(message, 404)
 
 
+class PayoutAccountStripeAccountDoesNotExist(PayoutAccountServiceError):
+    def __init__(self, stripe_id: str) -> None:
+        self.stripe_id = stripe_id
+        message = f"Stripe account {stripe_id} does not exist"
+        super().__init__(message, 422)
+
+
+class PayoutAccountNonZeroBalance(PayoutAccountServiceError):
+    def __init__(self, stripe_id: str) -> None:
+        self.stripe_id = stripe_id
+        message = (
+            f"Stripe account {stripe_id} has a non-zero balance. "
+            "Please withdraw your balance before deleting the payout account."
+        )
+        super().__init__(message, 422)
+
+
+class PayoutAccountLinkedToOrganization(PayoutAccountServiceError):
+    def __init__(self, payout_account_id: uuid.UUID) -> None:
+        self.payout_account_id = payout_account_id
+        message = (
+            f"Payout account {payout_account_id} is still linked to one or more "
+            "organizations. Please unlink it before deleting."
+        )
+        super().__init__(message, 422)
+
+
 class PayoutAccountService:
+    async def list(
+        self,
+        session: AsyncReadSession,
+        auth_subject: AuthSubject[User],
+    ) -> Sequence[PayoutAccount]:
+        repository = PayoutAccountRepository.from_session(session)
+        statement = repository.get_readable_statement(auth_subject)
+        return await repository.get_all(statement)
+
     async def get(
         self,
         session: AsyncReadSession,
@@ -65,9 +95,6 @@ class PayoutAccountService:
         organization = await get_payload_organization(
             session, auth_subject, payout_account_create
         )
-
-        if organization.payout_account_id is not None:
-            raise PayoutAccountAlreadyExists(organization.id)
 
         payout_account = await self._create_stripe_account(
             session,
@@ -107,21 +134,28 @@ class PayoutAccountService:
     async def delete(
         self, session: AsyncSession, payout_account: PayoutAccount
     ) -> None:
+        # Verify the account is not linked to any organization
+        organization_repository = OrganizationRepository.from_session(session)
+        linked_organizations = await organization_repository.get_all_by_payout_account(
+            payout_account.id
+        )
+        if linked_organizations:
+            raise PayoutAccountLinkedToOrganization(payout_account.id)
+
         # Delete the account on Stripe
         if payout_account.type == PayoutAccountType.stripe:
             assert payout_account.stripe_id is not None
             # Verify the account exists on Stripe before deletion
             if not await stripe.account_exists(payout_account.stripe_id):
-                raise PayoutAccountServiceError(
-                    f"Stripe Account ID {payout_account.stripe_id} doesn't exist"
-                )
+                raise PayoutAccountStripeAccountDoesNotExist(payout_account.stripe_id)
+            # Verify the account has a zero balance before deletion
+            _, balance = await stripe.retrieve_balance(payout_account.stripe_id)
+            if balance != 0:
+                raise PayoutAccountNonZeroBalance(payout_account.stripe_id)
             await stripe.delete_account(payout_account.stripe_id)
 
         repository = PayoutAccountRepository.from_session(session)
         await repository.soft_delete(payout_account)
-
-        organization_repository = OrganizationRepository.from_session(session)
-        await organization_repository.delete_payout_account(payout_account.id)
 
     async def update_account_from_stripe(
         self, session: AsyncSession, *, stripe_account: stripe_lib.Account

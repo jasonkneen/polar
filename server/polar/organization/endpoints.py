@@ -44,6 +44,7 @@ from .schemas import (
     OrganizationID,
     OrganizationKYC,
     OrganizationPaymentStatus,
+    OrganizationPayoutAccountSet,
     OrganizationReviewStatus,
     OrganizationUpdate,
     OrganizationValidateWebsiteRequest,
@@ -148,6 +149,32 @@ async def get_account(
         raise ResourceNotFound()
 
     return account
+
+
+@router.patch(
+    "/{id}/payout-account",
+    summary="Set Organization Payout Account",
+    response_model=OrganizationSchema,
+    responses={
+        404: OrganizationNotFound,
+    },
+    tags=[APITag.private],
+)
+async def set_payout_account(
+    id: OrganizationID,
+    body: OrganizationPayoutAccountSet,
+    auth_subject: auth.OrganizationsWriteUser,
+    session: AsyncSession = Depends(get_db_session),
+) -> Organization:
+    """Set the payout account for an organization."""
+    organization = await organization_service.get(session, auth_subject, id)
+
+    if organization is None:
+        raise ResourceNotFound()
+
+    return await organization_service.set_payout_account(
+        session, auth_subject, organization, body.payout_account_id
+    )
 
 
 @router.get(
