@@ -35,6 +35,7 @@ from polar.models import (
 from polar.models.file import FileServiceTypes
 from polar.models.organization import OrganizationStatus
 from polar.models.organization_review import OrganizationReview
+from polar.models.organization_review_feedback import OrganizationReviewFeedback
 from polar.models.transaction import TransactionType
 from polar.models.user import IdentityVerificationStatus
 from polar.models.user_session import UserSession
@@ -114,6 +115,7 @@ def organization_badge(organization: Organization) -> Generator[None]:
         elif (
             organization.is_under_review
             or organization.status == OrganizationStatus.DENIED
+            or organization.status == OrganizationStatus.OFFBOARDING
         ):
             classes("badge-warning")
         else:
@@ -1116,6 +1118,26 @@ async def get(
                     reason=reason,
                 )
                 await organization_service.deny_appeal(session, organization)
+            elif account_status.action == "offboard":
+                await review_repo.record_human_decision(
+                    organization_id=id,
+                    reviewer_id=user_session.user.id,
+                    decision=OrganizationReviewFeedback.DecisionType.DENY,
+                    reason=reason,
+                )
+                await organization_service.set_organization_offboarding(
+                    session, organization, reason=reason
+                )
+            elif account_status.action == "reactivate":
+                await review_repo.record_human_decision(
+                    organization_id=id,
+                    reviewer_id=user_session.user.id,
+                    decision=OrganizationReviewFeedback.DecisionType.APPROVE,
+                    reason=reason,
+                )
+                await organization_service.reactivate_organization(
+                    session, organization
+                )
             return HXRedirectResponse(request, request.url, 303)
         except PydanticCustomError as e:
             await add_toast(request, str(e.message_template), variant="error")
