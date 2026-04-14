@@ -8,9 +8,12 @@ Tests are organized by lifecycle phase:
 - lifecycle/     — ongoing subscription events (renewal, retry, cancellation)
 """
 
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import MagicMock
 
+import dramatiq
+import fakeredis
 import pytest
 import pytest_asyncio
 from pytest_mock import MockerFixture
@@ -63,6 +66,30 @@ def actor_registry() -> dict[str, Any]:
 @pytest.fixture(autouse=True)
 def _set_job_queue_manager() -> None:
     _job_queue_manager.set(JobQueueManager())
+
+
+@pytest.fixture(autouse=True)
+def _isolate_broker_redis() -> Iterator[None]:
+    """Give each test its own broker Redis so ``group().run()`` can't leak
+    messages between parallel pytest-xdist workers.
+
+    Replacing ``broker.client`` alone is not enough: the broker registers Lua
+    scripts (``broker.scripts``) against the original client at init time, so
+    ``broker.enqueue()`` would still write to the old Redis.  We must
+    re-register the scripts on the new client as well.
+    """
+    broker = dramatiq.get_broker()
+    original_client = broker.client  # type: ignore[attr-defined]
+    original_scripts = broker.scripts  # type: ignore[attr-defined]
+    fake = fakeredis.FakeRedis()
+    broker.client = fake  # type: ignore[attr-defined]
+    broker.scripts = {  # type: ignore[attr-defined]
+        name: fake.register_script(script.script)
+        for name, script in original_scripts.items()
+    }
+    yield
+    broker.client = original_client  # type: ignore[attr-defined]
+    broker.scripts = original_scripts  # type: ignore[attr-defined]
 
 
 @pytest.fixture(autouse=True)
