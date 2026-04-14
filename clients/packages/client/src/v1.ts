@@ -2770,7 +2770,7 @@ export interface paths {
     }
     /**
      * Get Member by External ID
-     * @description Get a member by external ID.
+     * @description Get a member by external ID. One of customer_id or external_customer_id must be specified.
      *
      *     **Scopes**: `members:read` `members:write`
      */
@@ -2779,7 +2779,7 @@ export interface paths {
     post?: never
     /**
      * Delete Member by External ID
-     * @description Delete a member by external ID.
+     * @description Delete a member by external ID. One of customer_id or external_customer_id must be specified.
      *
      *     **Scopes**: `members:write`
      */
@@ -2788,7 +2788,7 @@ export interface paths {
     head?: never
     /**
      * Update Member by External ID
-     * @description Update a member by external ID.
+     * @description Update a member by external ID. One of customer_id or external_customer_id must be specified.
      *
      *     **Scopes**: `members:write`
      */
@@ -2952,6 +2952,66 @@ export interface paths {
      * @description Delete a payment method from the authenticated customer.
      */
     delete: operations['customer_portal:customers:delete_payment_method']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/customer-portal/customers/me/email-update/request': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Request Email Change
+     * @description Request an email change for the authenticated customer.
+     */
+    post: operations['customer_portal:customers:request_email_update']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/customer-portal/customers/me/email-update/check': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Check Email Change Token
+     * @description Check if an email change verification token is still valid.
+     */
+    get: operations['customer_portal:customers:check_email_update']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/v1/customer-portal/customers/me/email-update/verify': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Verify Email Change
+     * @description Verify an email change using the token from the verification email.
+     */
+    post: operations['customer_portal:customers:verify_email_update']
+    delete?: never
     options?: never
     head?: never
     patch?: never
@@ -13988,6 +14048,24 @@ export interface components {
       /** Customer External Id */
       customer_external_id: string | null
     }
+    /** CustomerEmailUpdateRequest */
+    CustomerEmailUpdateRequest: {
+      /**
+       * Email
+       * Format: email
+       */
+      email: string
+    }
+    /** CustomerEmailUpdateVerifyRequest */
+    CustomerEmailUpdateVerifyRequest: {
+      /** Token */
+      token: string
+    }
+    /** CustomerEmailUpdateVerifyResponse */
+    CustomerEmailUpdateVerifyResponse: {
+      /** Token */
+      token: string
+    }
     /**
      * CustomerIndividual
      * @description A customer in an organization.
@@ -14804,6 +14882,11 @@ export interface components {
       /** Default Payment Method Id */
       default_payment_method_id?: string | null
       type?: components['schemas']['CustomerType'] | null
+    }
+    /** CustomerPortalCustomerSettings */
+    CustomerPortalCustomerSettings: {
+      /** Allow Email Change */
+      allow_email_change: boolean
     }
     /** CustomerPortalCustomerUpdate */
     CustomerPortalCustomerUpdate: {
@@ -22567,6 +22650,7 @@ export interface components {
     OrganizationCustomerPortalSettings: {
       usage: components['schemas']['CustomerPortalUsageSettings']
       subscription: components['schemas']['CustomerPortalSubscriptionSettings']
+      customer?: components['schemas']['CustomerPortalCustomerSettings']
     }
     /**
      * OrganizationDeletionBlockedReason
@@ -37200,7 +37284,12 @@ export interface operations {
   }
   'members:get_member_by_external_id': {
     parameters: {
-      query?: never
+      query?: {
+        /** @description The customer ID. */
+        customer_id?: string | null
+        /** @description The customer external ID. */
+        external_customer_id?: string | null
+      }
       header?: never
       path: {
         /** @description The member external ID. */
@@ -37241,7 +37330,12 @@ export interface operations {
   }
   'members:delete_member_by_external_id': {
     parameters: {
-      query?: never
+      query?: {
+        /** @description The customer ID. */
+        customer_id?: string | null
+        /** @description The customer external ID. */
+        external_customer_id?: string | null
+      }
       header?: never
       path: {
         /** @description The member external ID. */
@@ -37280,7 +37374,12 @@ export interface operations {
   }
   'members:update_member_by_external_id': {
     parameters: {
-      query?: never
+      query?: {
+        /** @description The customer ID. */
+        customer_id?: string | null
+        /** @description The customer external ID. */
+        external_customer_id?: string | null
+      }
       header?: never
       path: {
         /** @description The member external ID. */
@@ -37699,6 +37798,113 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError']
         }
+      }
+    }
+  }
+  'customer_portal:customers:request_email_update': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CustomerEmailUpdateRequest']
+      }
+    }
+    responses: {
+      /** @description Verification email sent. */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  'customer_portal:customers:check_email_update': {
+    parameters: {
+      query: {
+        token: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Token is valid. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Invalid or expired verification token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  'customer_portal:customers:verify_email_update': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CustomerEmailUpdateVerifyRequest']
+      }
+    }
+    responses: {
+      /** @description Email updated successfully. Returns a new session token. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CustomerEmailUpdateVerifyResponse']
+        }
+      }
+      /** @description Invalid or expired verification token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Email address is already in use. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
     }
   }
