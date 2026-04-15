@@ -279,8 +279,8 @@ const ClientPage: React.FC<ClientPageProps> = ({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Product" />
       ),
-      cell: (props) => {
-        const tier = props.getValue() as schemas['Product']
+      cell: ({ getValue }) => {
+        const tier = getValue() as schemas['Product']
         return (
           <div className="flex flex-row items-center gap-2">
             {tier.name}

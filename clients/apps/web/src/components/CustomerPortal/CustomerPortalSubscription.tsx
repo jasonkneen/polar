@@ -24,10 +24,12 @@ const CustomerPortalSubscription = ({
   api,
   customerSessionToken,
   subscription,
+  products,
 }: {
   api: Client
   customerSessionToken: string
   subscription: schemas['CustomerSubscription']
+  products: schemas['CustomerProduct'][]
 }) => {
   const {
     show: showCancelModal,
@@ -46,6 +48,11 @@ const CustomerPortalSubscription = ({
   })
 
   const cancelSubscription = useCustomerCancelSubscription(api)
+
+  const pendingUpdate = subscription.pending_update
+  const pendingProduct = products.find(
+    (product) => product.id === pendingUpdate?.product_id,
+  )
 
   const hasInvoices = orders?.items && orders.items.length > 0
 
@@ -129,6 +136,35 @@ const CustomerPortalSubscription = ({
         )}
       </div>
 
+      {pendingUpdate && (
+        <div className="flex flex-col gap-y-2">
+          <h3>Pending Update</h3>
+          <div className="flex flex-col">
+            {pendingProduct && (
+              <DetailRow
+                label="New Product"
+                value={`${subscription.product.name} -> ${pendingProduct?.name}`}
+              />
+            )}
+            {pendingUpdate.seats !== null && (
+              <DetailRow
+                label="Seats"
+                value={`${subscription.seats} -> ${pendingUpdate.seats}`}
+              />
+            )}
+            <DetailRow
+              label="Update in effect from"
+              value={
+                <FormattedDateTime
+                  datetime={pendingUpdate.applies_at}
+                  dateStyle="long"
+                />
+              }
+            />
+          </div>
+        </div>
+      )}
+
       {/* Cancel button - only shown for users with billing permissions */}
       {!isCancelled && canManageBilling && (
         <Button
@@ -149,7 +185,6 @@ const CustomerPortalSubscription = ({
           prorationBehavior={
             subscription.product.organization.proration_behavior
           }
-          pendingUpdate={subscription.pending_update}
         />
       )}
 
