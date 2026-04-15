@@ -31,13 +31,16 @@ export default function ClientPage({
   const { data: payoutAccount } = usePayoutAccount(
     organization.payout_account_id || undefined,
   )
-  const { data: reviewStatus } = useOrganizationReviewStatus(organization.id)
+  const { data: reviewStatus, isPending: isReviewStatusPending } =
+    useOrganizationReviewStatus(organization.id)
 
   const isGrandfathered =
     reviewStatus?.verdict === 'PASS' &&
     reviewStatus?.reason === 'Grandfathered organization'
 
   const isDenied = organization.status === 'denied'
+
+  const canAppeal = reviewStatus?.appeal_decision !== 'rejected'
 
   const isActive = ['active', 'review', 'snoozed'].includes(organization.status)
 
@@ -165,7 +168,7 @@ export default function ClientPage({
               kyc={true}
               onSubmitted={handleDetailsSubmitted}
             />
-          ) : isDenied ? (
+          ) : isDenied && !canAppeal ? (
             <div className="dark:bg-polar-800 rounded-2xl border bg-white p-8 text-center">
               <span className="dark:bg-polar-700 mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
                 <BanIcon className="dark:text-polar-400 h-4 w-4 text-gray-500" />
@@ -188,7 +191,10 @@ export default function ClientPage({
               </p>
             </div>
           ) : (
-            <AIValidationResult organization={organization} />
+            <AIValidationResult
+              organization={organization}
+              isPending={isReviewStatusPending}
+            />
           )}
         </Section>
 
