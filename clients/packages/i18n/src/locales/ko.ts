@@ -88,6 +88,20 @@ export default {
           _mode: 'plural',
         },
       },
+      perSeat: '좌석당',
+      seats: {
+        label: '좌석',
+        numberOfSeats: '좌석 수',
+        count: {
+          '=1': '#석',
+          other: '#석',
+          _mode: 'plural',
+        },
+        range: '{min} - {max}석',
+        minimum: '최소 {min}석',
+        maximum: '최대 {max}석',
+        updateFailed: '좌석 수를 업데이트하지 못했습니다',
+      },
     },
     trial: {
       ends: '체험 종료일: {endDate}',

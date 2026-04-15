@@ -88,6 +88,20 @@ export default {
           _mode: 'plural',
         },
       },
+      perSeat: 'per plats',
+      seats: {
+        label: 'Platser',
+        numberOfSeats: 'Antal platser',
+        count: {
+          '=1': '# plats',
+          other: '# platser',
+          _mode: 'plural',
+        },
+        range: '{min} - {max} platser',
+        minimum: 'Minst {min} platser',
+        maximum: 'Högst {max} platser',
+        updateFailed: 'Det gick inte att uppdatera platserna',
+      },
     },
     trial: {
       ends: 'Testperioden slutar {endDate}',

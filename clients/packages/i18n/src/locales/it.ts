@@ -88,6 +88,20 @@ export default {
         },
         until: 'Fino al {date}',
       },
+      perSeat: 'per postazione',
+      seats: {
+        label: 'Postazioni',
+        numberOfSeats: 'Numero di postazioni',
+        count: {
+          '=1': '# postazione',
+          other: '# postazioni',
+          _mode: 'plural',
+        },
+        range: '{min} - {max} postazioni',
+        minimum: 'Minimo {min} postazioni',
+        maximum: 'Massimo {max} postazioni',
+        updateFailed: 'Impossibile aggiornare le postazioni',
+      },
     },
     trial: {
       ends: 'La prova termina il {endDate}',

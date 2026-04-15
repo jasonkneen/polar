@@ -88,6 +88,20 @@ export default {
           _mode: 'plural',
         },
       },
+      perSeat: 'par siège',
+      seats: {
+        label: 'Postes',
+        numberOfSeats: 'Nombre de postes',
+        count: {
+          '=1': '# poste',
+          other: '# postes',
+          _mode: 'plural',
+        },
+        range: '{min} - {max} postes',
+        minimum: 'Minimum {min} postes',
+        maximum: 'Maximum {max} postes',
+        updateFailed: 'Échec de la mise à jour des postes',
+      },
     },
     trial: {
       ends: "L'essai se termine le {endDate}",

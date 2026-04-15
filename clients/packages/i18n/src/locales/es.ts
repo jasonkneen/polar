@@ -88,6 +88,20 @@ export default {
           _mode: 'plural',
         },
       },
+      perSeat: 'por usuario',
+      seats: {
+        label: 'Asientos',
+        numberOfSeats: 'Número de asientos',
+        count: {
+          '=1': '# asiento',
+          other: '# asientos',
+          _mode: 'plural',
+        },
+        range: '{min} - {max} asientos',
+        minimum: 'Mínimo {min} asientos',
+        maximum: 'Máximo {max} asientos',
+        updateFailed: 'No se pudieron actualizar los asientos',
+      },
     },
     trial: {
       ends: 'La prueba finaliza el {endDate}',

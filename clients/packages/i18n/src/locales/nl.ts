@@ -88,6 +88,20 @@ export default {
           _mode: 'plural',
         },
       },
+      perSeat: 'per gebruiker',
+      seats: {
+        label: 'Stoelen',
+        numberOfSeats: 'Aantal stoelen',
+        count: {
+          '=1': '# stoel',
+          other: '# stoelen',
+          _mode: 'plural',
+        },
+        range: '{min} - {max} stoelen',
+        minimum: 'Minimaal {min} stoelen',
+        maximum: 'Maximaal {max} stoelen',
+        updateFailed: 'Stoelen bijwerken mislukt',
+      },
     },
     trial: {
       ends: 'Proefperiode eindigt op {endDate}',

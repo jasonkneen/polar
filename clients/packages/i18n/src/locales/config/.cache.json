@@ -162,7 +162,16 @@
     "checkout.trial.summary.totalDueToday": "Total due today",
     "checkout.pricing.discount.until": "Until {date}",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "fr": {
     "checkout.footer.poweredBy": "Powered by",
@@ -327,7 +336,16 @@
     "checkout.trial.summary.totalDueToday": "Total due today",
     "checkout.pricing.discount.until": "Until {date}",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "sv": {
     "checkout.footer.poweredBy": "Powered by",
@@ -492,7 +510,16 @@
     "checkout.trial.summary.totalDueToday": "Total due today",
     "checkout.pricing.discount.until": "Until {date}",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "es": {
     "checkout.footer.poweredBy": "Powered by",
@@ -657,7 +684,16 @@
     "checkout.trial.summary.totalDueToday": "Total due today",
     "checkout.pricing.discount.until": "Until {date}",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "de": {
     "checkout.footer.poweredBy": "Powered by",
@@ -822,7 +858,16 @@
     "checkout.trial.summary.totalDueToday": "Total due today",
     "checkout.pricing.discount.until": "Until {date}",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "hu": {
     "checkout.footer.poweredBy": "Powered by",
@@ -979,7 +1024,16 @@
     "checkout.trial.summary.totalDueToday": "Total due today",
     "checkout.pricing.discount.until": "Until {date}",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "it": {
     "checkout.footer.poweredBy": "Powered by",
@@ -1136,7 +1190,16 @@
     "checkout.productDescription.readLess": "Read less",
     "benefitTypes.feature_flag": "Feature flag",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "ko": {
     "checkout.footer.poweredBy": "Powered by",
@@ -1293,7 +1356,16 @@
     "checkout.pricing.everyInterval.year.=2": "Every other year",
     "checkout.pricing.everyInterval.year.other": "Every # years",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "pt": {
     "checkout.footer.poweredBy": "Powered by",
@@ -1450,7 +1522,16 @@
     "checkout.trial.summary.totalDueToday": "Total due today",
     "checkout.pricing.discount.until": "Until {date}",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   },
   "pt-PT": {
     "checkout.footer.poweredBy": "Powered by",
@@ -1607,6 +1688,15 @@
     "checkout.trial.summary.totalDueToday": "Total due today",
     "checkout.pricing.discount.until": "Until {date}",
     "checkout.productSwitcher.fromPrefix": "From",
-    "checkout.footer.buyerTermsLink": "Buyer Terms"
+    "checkout.footer.buyerTermsLink": "Buyer Terms",
+    "checkout.pricing.perSeat": "per seat",
+    "checkout.pricing.seats.label": "Seats",
+    "checkout.pricing.seats.numberOfSeats": "Number of seats",
+    "checkout.pricing.seats.count.=1": "# seat",
+    "checkout.pricing.seats.count.other": "# seats",
+    "checkout.pricing.seats.range": "{min} - {max} seats",
+    "checkout.pricing.seats.minimum": "Minimum {min} seats",
+    "checkout.pricing.seats.maximum": "Maximum {max} seats",
+    "checkout.pricing.seats.updateFailed": "Failed to update seats"
   }
 }
