@@ -54,6 +54,15 @@ export default [
     },
   },
   {
+    files: [
+      'src/app/(main)/onboarding/**/*.tsx',
+      'src/components/Onboarding/**/*.tsx',
+    ],
+    rules: {
+      'polar/no-raw-html-layout': 'error',
+    },
+  },
+  {
     ignores: [
       'node_modules/**',
       '.next/**',
