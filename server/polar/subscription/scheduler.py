@@ -61,14 +61,19 @@ class SubscriptionJobStore(BaseJobStore):
         return jobs
 
     def remove_job(self, job_id: str) -> None:
+        # Conditional UPDATE dedupes concurrent schedulers: losers see 0 rows.
         subscription_id = job_id.split(":")[-1]
         statement = (
             update(Subscription)
-            .where(Subscription.id == subscription_id)
+            .where(
+                Subscription.id == subscription_id,
+                Subscription.scheduler_locked_at.is_(None),
+            )
             .values(scheduler_locked_at=utc_now())
         )
         with self.engine.begin() as connection:
-            connection.execute(statement)
+            if connection.execute(statement).rowcount == 0:
+                return
         actor = dramatiq.get_broker().get_actor("subscription.cycle")
         actor.send(subscription_id=subscription_id)
 
@@ -106,8 +111,7 @@ class SubscriptionJobStore(BaseJobStore):
                     "next_run_time": trigger.run_date,
                     "misfire_grace_time": None,
                 }
-                job = Job(self._scheduler, **job_kwargs)
-                jobs.append(job)
+                jobs.append(Job(self._scheduler, **job_kwargs))
         return jobs
 
     @staticmethod
