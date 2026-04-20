@@ -352,22 +352,6 @@ class OrganizationDetailView:
                             ):
                                 text("Deny")
 
-                    elif self.org.status == OrganizationStatus.OFFBOARDING:
-                        with tag.div(classes="w-full"):
-                            with button(
-                                variant="secondary",
-                                size="sm",
-                                outline=True,
-                                hx_get=str(
-                                    request.url_for(
-                                        "organizations:reactivate_dialog",
-                                        organization_id=self.org.id,
-                                    )
-                                ),
-                                hx_target="#modal",
-                            ):
-                                text("Reactivate")
-
                     elif self.org.status == OrganizationStatus.REVIEW:
                         # Compute suggested threshold: double current or $250 min
                         current_threshold = self.org.next_review_threshold or 0
@@ -535,21 +519,6 @@ class OrganizationDetailView:
                                 hx_target="#modal",
                             ):
                                 text("Deny")
-
-                        with tag.div(classes="w-full"):
-                            with button(
-                                variant="secondary",
-                                size="sm",
-                                outline=True,
-                                hx_get=str(
-                                    request.url_for(
-                                        "organizations:offboard_dialog",
-                                        organization_id=self.org.id,
-                                    )
-                                ),
-                                hx_target="#modal",
-                            ):
-                                text("Set Offboarding")
 
                     elif self.org.status == OrganizationStatus.CREATED:
                         with tag.div(classes="w-full"):
