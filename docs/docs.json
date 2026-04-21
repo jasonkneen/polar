@@ -96,7 +96,14 @@
               "features/refunds",
               "features/analytics",
               "features/customer-management",
-              "features/customer-portal",
+              {
+                "group": "Customer Portal",
+                "pages": [
+                  "features/customer-portal/introduction",
+                  "features/customer-portal/navigate-customers",
+                  "features/customer-portal/settings"
+                ]
+              },
               {
                 "group": "Finance & Payouts",
                 "pages": [
@@ -573,7 +580,6 @@
               "guides/create-variants",
               "guides/customize-benefits-order-in-checkouts",
               "guides/customize-products-order-in-checkouts",
-              "guides/disable-subscription-changes-in-customer-portal",
               "guides/disable-email-editing-in-checkout",
               "guides/grant-meter-credits-after-purchase",
               "guides/grant-meter-credits-before-purchase",
@@ -765,7 +771,23 @@
     },
     {
       "source": "/documentation/features/customer-portal",
-      "destination": "/features/customer-portal"
+      "destination": "/features/customer-portal/introduction"
+    },
+    {
+      "source": "/guides/disable-subscription-changes-in-customer-portal",
+      "destination": "/features/customer-portal/settings"
+    },
+    {
+      "source": "/features/customer-portal",
+      "destination": "/features/customer-portal/introduction"
+    },
+    {
+      "source": "/features/customer-portal/faq",
+      "destination": "/features/customer-portal/introduction#faq"
+    },
+    {
+      "source": "/docs/features/customer-portal",
+      "destination": "/features/customer-portal/introduction"
     },
     {
       "source": "/documentation/features/finance/accounts",
