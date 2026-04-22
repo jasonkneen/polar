@@ -1,7 +1,7 @@
 import builtins
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import structlog
@@ -9,7 +9,6 @@ from pydantic import TypeAdapter
 from sqlalchemy import UnaryExpression, asc, desc, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
-from sqlalchemy_utils.types.range import timedelta
 
 from polar.auth.models import AuthSubject
 from polar.benefit.grant.repository import BenefitGrantRepository
