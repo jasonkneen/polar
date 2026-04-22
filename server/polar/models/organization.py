@@ -242,6 +242,16 @@ class OrganizationCapabilities(TypedDict):
     dashboard_access: bool
 
 
+CapabilityName = Literal[
+    "checkout_payments",
+    "subscription_renewals",
+    "payouts",
+    "refunds",
+    "api_access",
+    "dashboard_access",
+]
+
+
 class InvalidStatusTransitionError(PolarError):
     def __init__(
         self, current: "OrganizationStatus", target: "OrganizationStatus"
@@ -564,14 +574,73 @@ class Organization(RateLimitGroupMixin, RecordModel):
     # End: Fields synced from GitHub
     #
 
+    def get_effective_capabilities(self) -> OrganizationCapabilities:
+        """Return capabilities, falling back to the status defaults for rows
+        that pre-date the backfill."""
+        return self.capabilities or STATUS_CAPABILITIES[self.status]
+
+    def _capability(self, name: CapabilityName) -> bool:
+        return self.get_effective_capabilities()[name]
+
     @hybrid_property
     def can_authenticate(self) -> bool:
-        return not self.is_deleted and self.status != OrganizationStatus.BLOCKED
+        return not self.is_deleted and self._capability("api_access")
 
     @can_authenticate.inplace.expression
     @classmethod
     def _can_authenticate_expression(cls) -> ColumnElement[bool]:
-        return and_(cls.is_deleted.is_(False), cls.status != OrganizationStatus.BLOCKED)
+        return and_(
+            cls.is_deleted.is_(False),
+            cls.capabilities["api_access"].as_boolean().is_(True),
+        )
+
+    @hybrid_property
+    def can_access_dashboard(self) -> bool:
+        return not self.is_deleted and self._capability("dashboard_access")
+
+    @can_access_dashboard.inplace.expression
+    @classmethod
+    def _can_access_dashboard_expression(cls) -> ColumnElement[bool]:
+        return and_(
+            cls.is_deleted.is_(False),
+            cls.capabilities["dashboard_access"].as_boolean().is_(True),
+        )
+
+    @hybrid_property
+    def can_accept_payments(self) -> bool:
+        return self._capability("checkout_payments")
+
+    @can_accept_payments.inplace.expression
+    @classmethod
+    def _can_accept_payments_expression(cls) -> ColumnElement[bool]:
+        return cls.capabilities["checkout_payments"].as_boolean().is_(True)
+
+    @hybrid_property
+    def can_renew_subscriptions(self) -> bool:
+        return self._capability("subscription_renewals")
+
+    @can_renew_subscriptions.inplace.expression
+    @classmethod
+    def _can_renew_subscriptions_expression(cls) -> ColumnElement[bool]:
+        return cls.capabilities["subscription_renewals"].as_boolean().is_(True)
+
+    @hybrid_property
+    def can_payout(self) -> bool:
+        return self._capability("payouts")
+
+    @can_payout.inplace.expression
+    @classmethod
+    def _can_payout_expression(cls) -> ColumnElement[bool]:
+        return cls.capabilities["payouts"].as_boolean().is_(True)
+
+    @hybrid_property
+    def can_refund(self) -> bool:
+        return self._capability("refunds")
+
+    @can_refund.inplace.expression
+    @classmethod
+    def _can_refund_expression(cls) -> ColumnElement[bool]:
+        return cls.capabilities["refunds"].as_boolean().is_(True)
 
     def set_status(self, status: OrganizationStatus) -> None:
         if (
@@ -582,6 +651,8 @@ class Organization(RateLimitGroupMixin, RecordModel):
         self.status = status
         self.status_updated_at = datetime.now(UTC)
         self.capabilities = {**STATUS_CAPABILITIES[status]}
+        # Mirror to the legacy column so the two stay in sync.
+        self.refunds_blocked = not self.capabilities["refunds"]
 
     @hybrid_property
     def is_under_review(self) -> bool:

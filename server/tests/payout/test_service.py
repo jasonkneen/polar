@@ -147,7 +147,9 @@ class TestCreate:
         account: Account,
         user: User,
     ) -> None:
+        # Bypass set_status's transition validation to seed any starting status.
         organization.status = status
+        organization.set_status(status)
         await save_fixture(organization)
 
         payout_account = await create_payout_account(save_fixture, organization, user)

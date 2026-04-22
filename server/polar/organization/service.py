@@ -11,7 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from polar.account.service import account as account_service
 from polar.auth.models import AuthSubject
-from polar.config import Environment, settings
+from polar.config import settings
 from polar.customer.repository import CustomerRepository
 from polar.enums import InvoiceNumbering, SubscriptionProrationBehavior
 from polar.exceptions import NotPermitted, PolarError, PolarRequestValidationError
@@ -1070,71 +1070,16 @@ class OrganizationService:
         session.add(organization)
         return organization
 
-    async def get_payment_status(
-        self,
-        session: AsyncReadSession,
-        organization: Organization,
-    ) -> PaymentStatusResponse:
+    def get_payment_status(self, organization: Organization) -> PaymentStatusResponse:
         """Get payment status and onboarding steps for an organization."""
         return PaymentStatusResponse(
-            payment_ready=await self.is_organization_ready_for_payment(
-                session, organization
-            ),
+            payment_ready=self.is_organization_ready_for_payment(organization),
             organization_status=organization.status,
         )
 
-    async def is_organization_ready_for_payment(
-        self, session: AsyncReadSession, organization: Organization
-    ) -> bool:
-        """
-        Check if an organization is ready to accept payments.
-        This method loads the account and admin data as needed, avoiding the need
-        for eager loading in other services like checkout.
-        """
-        # In sandbox environment, always allow payments regardless of account setup
-        if settings.ENV == Environment.sandbox:
-            return True
-
-        # First check basic conditions that don't require account data
-        if organization.status in {
-            OrganizationStatus.BLOCKED,
-            OrganizationStatus.DENIED,
-        }:
-            return False
-
-        # Check grandfathering - if grandfathered, they're ready
-        cutoff_date = datetime(2025, 8, 4, 9, 0, tzinfo=UTC)
-        if organization.created_at <= cutoff_date:
-            return True
-
-        # For new organizations, check basic conditions first
-        if organization.status not in OrganizationStatus.payment_ready_statuses():
-            return False
-
-        # Details must be submitted (check for empty dict as well)
-        if not organization.details_submitted_at or not organization.details:
-            return False
-
-        # Must have an active payout account
-        if organization.payout_account_id is None:
-            return False
-
-        payout_account_repository = PayoutAccountRepository.from_session(session)
-        payout_account = await payout_account_repository.get_by_id(
-            organization.payout_account_id, options=(joinedload(PayoutAccount.admin),)
-        )
-        if not payout_account:
-            return False
-
-        # Check admin identity verification status
-        admin = payout_account.admin
-        if not admin or admin.identity_verification_status not in [
-            IdentityVerificationStatus.verified,
-            IdentityVerificationStatus.pending,
-        ]:
-            return False
-
-        return True
+    def is_organization_ready_for_payment(self, organization: Organization) -> bool:
+        """Whether the org can accept payments. Sandbox bypasses the capability."""
+        return settings.is_sandbox() or organization.can_accept_payments
 
     async def get_ai_review(
         self, session: AsyncSession, organization: Organization

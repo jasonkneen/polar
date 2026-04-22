@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
 from polar.auth.models import AuthSubject
-from polar.config import Environment, settings
+from polar.config import settings
 from polar.enums import (
     InvoiceNumbering,
     PayoutAccountType,
@@ -17,6 +17,7 @@ from polar.exceptions import PolarRequestValidationError
 from polar.models import Customer, Organization, Product, User
 from polar.models.account import Account
 from polar.models.organization import (
+    STATUS_CAPABILITIES,
     InvalidStatusTransitionError,
     OrganizationNotificationSettings,
     OrganizationStatus,
@@ -856,54 +857,29 @@ class TestSetOrganizationUnderReview:
         )
 
 
-@pytest.mark.asyncio
 class TestGetPaymentStatus:
-    async def test_all_steps_complete_grandfathered(
+    def test_active_org_is_payment_ready(
         self,
-        session: AsyncSession,
-        save_fixture: SaveFixture,
         organization: Organization,
-        product: Product,
-        mocker: MockerFixture,
-        user: User,
     ) -> None:
-        # Grandfathered organization (created before cutoff)
-        organization.created_at = datetime(2025, 8, 4, 8, 0, tzinfo=UTC)
-        await save_fixture(organization)
-
-        # Mock the API key count
-        mocker.patch(
-            "polar.organization_access_token.repository.OrganizationAccessTokenRepository.count_by_organization_id",
-            return_value=1,  # Has 1 API key
-        )
-
-        payment_status = await organization_service.get_payment_status(
-            session, organization
-        )
-
-        # Should be payment ready because it's grandfathered
+        # Default fixture status is ACTIVE → checkout_payments capability is True.
+        payment_status = organization_service.get_payment_status(organization)
         assert payment_status.payment_ready is True
 
-    async def test_sandbox_environment_allows_payments(
+    def test_sandbox_environment_allows_payments(
         self,
-        session: AsyncSession,
-        save_fixture: SaveFixture,
         organization: Organization,
         mocker: MockerFixture,
     ) -> None:
-        # Make organization not payment ready
-        organization.created_at = datetime(2025, 8, 4, 12, 0, tzinfo=UTC)
-        organization.status = OrganizationStatus.CREATED
-        await save_fixture(organization)
-
-        # Mock environment to be sandbox
-        mocker.patch("polar.organization.service.settings.ENV", Environment.sandbox)
-
-        payment_status = await organization_service.get_payment_status(
-            session, organization
+        # An org with the capability disabled is normally not payment-ready,
+        # but sandbox bypasses every gate.
+        organization.set_status(OrganizationStatus.BLOCKED)
+        mocker.patch(
+            "polar.organization.service.settings.is_sandbox", return_value=True
         )
 
-        # Should be payment ready in sandbox even if account setup is incomplete
+        payment_status = organization_service.get_payment_status(organization)
+
         assert payment_status.payment_ready is True
 
 
@@ -2087,27 +2063,6 @@ class TestUnsnoozeOrganization:
 
 
 @pytest.mark.asyncio
-class TestOffboardingPaymentReady:
-    async def test_offboarding_allows_payments(
-        self,
-        session: AsyncSession,
-        save_fixture: SaveFixture,
-        organization: Organization,
-    ) -> None:
-        """Offboarding organizations should still be able to accept payments."""
-        # Grandfathered organization so we skip account setup checks
-        organization.created_at = datetime(2025, 8, 4, 8, 0, tzinfo=UTC)
-        organization.status = OrganizationStatus.OFFBOARDING
-        await save_fixture(organization)
-
-        result = await organization_service.is_organization_ready_for_payment(
-            session, organization
-        )
-
-        assert result is True
-
-
-@pytest.mark.asyncio
 class TestSetPayoutAccount:
     @pytest.mark.auth
     async def test_set_payout_account_on_organization(
@@ -2273,3 +2228,84 @@ class TestStatusTransitions:
         organization.status = OrganizationStatus.BLOCKED
         with pytest.raises(InvalidStatusTransitionError):
             organization.set_status(target)
+
+
+@pytest.mark.asyncio
+class TestCapabilityOverrides:
+    """Capability overrides flip enforcement gates without changing status."""
+
+    async def test_checkout_payments_override_blocks_active_org(
+        self,
+        organization: Organization,
+    ) -> None:
+        organization.set_status(OrganizationStatus.ACTIVE)
+        assert organization.capabilities is not None
+        organization.capabilities = {
+            **organization.capabilities,
+            "checkout_payments": False,
+        }
+
+        assert organization.can_accept_payments is False
+        assert (
+            organization_service.is_organization_ready_for_payment(organization)
+            is False
+        )
+
+    async def test_can_authenticate_follows_api_access_capability(
+        self,
+        organization: Organization,
+    ) -> None:
+        organization.set_status(OrganizationStatus.ACTIVE)
+        assert organization.can_authenticate is True
+        assert organization.capabilities is not None
+
+        organization.capabilities = {
+            **organization.capabilities,
+            "api_access": False,
+        }
+        assert organization.can_authenticate is False
+
+    async def test_can_access_dashboard_follows_dashboard_access_capability(
+        self,
+        organization: Organization,
+    ) -> None:
+        organization.set_status(OrganizationStatus.ACTIVE)
+        assert organization.can_access_dashboard is True
+        assert organization.capabilities is not None
+
+        organization.capabilities = {
+            **organization.capabilities,
+            "dashboard_access": False,
+        }
+        assert organization.can_access_dashboard is False
+
+
+@pytest.mark.asyncio
+class TestSetStatusCapabilities:
+    @pytest.mark.parametrize("status", list(OrganizationStatus))
+    async def test_set_status_writes_capabilities(
+        self,
+        status: OrganizationStatus,
+        organization: Organization,
+    ) -> None:
+        # Bypass set_status's transition validation: this test verifies the
+        # capability mapping for each status, not the transition rules.
+        organization.status = status
+        organization.set_status(status)
+
+        assert organization.status == status
+        assert organization.capabilities == STATUS_CAPABILITIES[status]
+
+    async def test_set_status_overwrites_prior_overrides(
+        self,
+        organization: Organization,
+    ) -> None:
+        organization.set_status(OrganizationStatus.ACTIVE)
+        assert organization.capabilities is not None
+        organization.capabilities = {**organization.capabilities, "payouts": False}
+
+        organization.set_status(OrganizationStatus.BLOCKED)
+
+        assert (
+            organization.capabilities == STATUS_CAPABILITIES[OrganizationStatus.BLOCKED]
+        )

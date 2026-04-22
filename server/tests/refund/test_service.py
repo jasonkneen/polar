@@ -896,8 +896,13 @@ class TestOrganizationRefundsBlocked:
         from polar.organization.repository import OrganizationRepository
 
         org_repository = OrganizationRepository.from_session(session)
+        assert organization.capabilities is not None
         organization = await org_repository.update(
-            organization, update_dict={"refunds_blocked": True}
+            organization,
+            update_dict={
+                "refunds_blocked": True,
+                "capabilities": {**organization.capabilities, "refunds": False},
+            },
         )
 
         # Create an order

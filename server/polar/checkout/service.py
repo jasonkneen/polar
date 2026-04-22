@@ -299,7 +299,7 @@ class CheckoutService:
         if checkout is None:
             return None
 
-        if checkout.organization.is_blocked():
+        if not checkout.organization.can_authenticate:
             raise NotPermitted()
 
         return checkout
@@ -367,7 +367,7 @@ class CheckoutService:
                     ]
                 ) from e
 
-        if product.organization.is_blocked():
+        if not product.organization.can_authenticate:
             raise NotPermitted()
 
         if checkout_create.amount is not None and is_custom_price(price):
@@ -956,9 +956,8 @@ class CheckoutService:
                 }
             )
 
-        # Check if organization can accept payments
-        if not await organization_service.is_organization_ready_for_payment(
-            session, checkout.organization
+        if not organization_service.is_organization_ready_for_payment(
+            checkout.organization
         ):
             if checkout.is_payment_required:
                 raise PaymentNotReady()

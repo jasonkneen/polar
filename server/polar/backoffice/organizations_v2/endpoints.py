@@ -543,8 +543,8 @@ async def get_organization_detail(
         payouts_enabled = await setup_analytics.check_payout_account_enabled(
             organization
         )
-        payment_ready = await organization_service.is_organization_ready_for_payment(
-            session, organization
+        payment_ready = organization_service.is_organization_ready_for_payment(
+            organization
         )
 
         setup_score = OrganizationSetupAnalyticsService.calculate_setup_score(
@@ -3542,8 +3542,13 @@ async def set_refunds_blocked(
             303,
         )
 
+    new_capabilities = {
+        **organization.get_effective_capabilities(),
+        "refunds": not blocked,
+    }
     organization = await repository.update(
-        organization, update_dict={"refunds_blocked": blocked}
+        organization,
+        update_dict={"refunds_blocked": blocked, "capabilities": new_capabilities},
     )
 
     action = "blocked" if blocked else "unblocked"

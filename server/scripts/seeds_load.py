@@ -1369,7 +1369,7 @@ async def create_seed_data(session: AsyncSession, redis: Redis) -> None:
         organization.bio = org_data["bio"]
         organization.details = org_data.get("details", {})
         organization.details_submitted_at = utc_now()
-        organization.status = org_data.get("status", OrganizationStatus.CREATED)
+        organization.set_status(org_data.get("status", OrganizationStatus.CREATED))
         organization.feature_settings = org_data.get("feature_settings", {})
         session.add(organization)
 
@@ -1889,7 +1889,7 @@ async def create_single_org_seed(
     )
     organization.email = f"{slug}@polar.sh"
     organization.bio = f"Seeded organization: {name}"
-    organization.status = OrganizationStatus.ACTIVE
+    organization.set_status(OrganizationStatus.ACTIVE)
     organization.details_submitted_at = utc_now()
     organization.initially_reviewed_at = utc_now()
     session.add(organization)
