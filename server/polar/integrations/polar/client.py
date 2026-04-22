@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NoReturn
 
 import httpx
@@ -229,6 +230,77 @@ class PolarSelfClient:
                 _raise_error(span, e, "track_event_ingestion")
             except httpx.RequestError as e:
                 _raise_network_error(span, e, "track_event_ingestion")
+
+    async def track_organization_review_usage(
+        self,
+        *,
+        external_customer_id: str,
+        review_context: str,
+        vendor: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost_usd: Decimal,
+    ) -> None:
+        from polar_sdk.models import (
+            CostMetadataInput,
+            EventCreateExternalCustomer,
+            EventsIngest,
+            LLMMetadata,
+        )
+        from polar_sdk.models.polarerror import PolarError
+
+        total_tokens = input_tokens + output_tokens
+        cost_cents = cost_usd * Decimal(100)
+        root_external_id = f"organization_review-{external_customer_id}"
+
+        with logfire.span(
+            "polar.track_organization_review_usage",
+            external_customer_id=external_customer_id,
+            review_context=review_context,
+            vendor=vendor,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=str(cost_usd),
+        ) as span:
+            try:
+                await self._sdk.events.ingest_async(
+                    request=EventsIngest(
+                        events=[
+                            EventCreateExternalCustomer(
+                                name="organization_review",
+                                external_customer_id=external_customer_id,
+                                external_id=root_external_id,
+                            ),
+                            EventCreateExternalCustomer(
+                                name=f"organization_review.{review_context}",
+                                external_customer_id=external_customer_id,
+                                parent_id=root_external_id,
+                                metadata={
+                                    "_llm": LLMMetadata(
+                                        vendor=vendor,
+                                        model=model,
+                                        input_tokens=input_tokens,
+                                        output_tokens=output_tokens,
+                                        total_tokens=total_tokens,
+                                    ),
+                                    "_cost": CostMetadataInput(
+                                        amount=str(cost_cents),
+                                        currency="usd",
+                                    ),
+                                },
+                            ),
+                        ]
+                    )
+                )
+            except PolarError as e:
+                if e.status_code == 409:
+                    span.set_attribute("conflict", True)
+                    return
+                _raise_error(span, e, "track_organization_review_usage")
+            except httpx.RequestError as e:
+                _raise_network_error(span, e, "track_organization_review_usage")
 
 
 _client: PolarSelfClient | None = None
