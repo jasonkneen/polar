@@ -38,6 +38,7 @@ const AUTHENTICATED_ROUTES = [
   new RegExp('^/finance(/.*)?'),
   new RegExp('^/settings(/.*)?'),
   new RegExp('^/oauth2(/.*)?'),
+  new RegExp('^/to(/.*)?'),
 ]
 
 const getOrCreateDistinctId = (
