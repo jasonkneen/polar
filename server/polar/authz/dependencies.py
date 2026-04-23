@@ -9,7 +9,7 @@ from polar.auth.scope import Scope
 from polar.exceptions import NotPermitted, ResourceNotFound
 from polar.models import Organization as OrganizationModel
 from polar.organization.schemas import OrganizationID
-from polar.postgres import AsyncReadSession, get_db_read_session
+from polar.postgres import AsyncSession, get_db_session
 
 from .policies import finance, members
 from .policies import organization as org_policy
@@ -77,7 +77,7 @@ def OrgPolicyGuard(
         auth_subject: Annotated[
             AuthSubject[User | Organization], Depends(_authenticator)
         ],
-        session: AsyncReadSession = Depends(get_db_read_session),
+        session: AsyncSession = Depends(get_db_session),
     ) -> AuthzContext[User | Organization]:
         organization = await get_accessible_organization(session, auth_subject, id)
         if organization is None:
@@ -93,7 +93,7 @@ def OrgPolicyGuard(
 
 
 async def _always_allow(
-    session: AsyncReadSession,
+    session: AsyncSession,
     auth_subject: AuthSubject[User | Organization],
     organization: OrganizationModel,
 ) -> bool:
