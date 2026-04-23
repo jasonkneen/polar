@@ -700,6 +700,7 @@ class TestIngest:
     @pytest.mark.auth(AuthSubjectFixture(subject="organization"))
     async def test_parent_child_same_batch(
         self,
+        enqueue_job_mock: MagicMock,
         enqueue_events_mock: AsyncMock,
         session: AsyncSession,
         auth_subject: AuthSubject[Organization],
@@ -727,6 +728,7 @@ class TestIngest:
         )
 
         await event_service.ingest(session, auth_subject, ingest)
+        await event_service.ingested(session, list(enqueue_events_mock.call_args[0]))
 
         events = await event_repository.get_all_by_organization(auth_subject.subject.id)
         assert len(events) == 3
@@ -752,6 +754,177 @@ class TestIngest:
             parent.id,
             email_child.id,
             completed_child.id,
+        }
+
+    @pytest.mark.auth(AuthSubjectFixture(subject="organization"))
+    async def test_parent_arrives_after_child_cross_batch(
+        self,
+        enqueue_job_mock: MagicMock,
+        enqueue_events_mock: AsyncMock,
+        session: AsyncSession,
+        auth_subject: AuthSubject[Organization],
+    ) -> None:
+        event_repository = EventRepository.from_session(session)
+
+        child_ingest = EventsIngest(
+            events=[
+                EventCreateExternalCustomer(
+                    name="email_sent",
+                    external_customer_id="test-customer-123",
+                    parent_id="parent-event-123",
+                ),
+            ]
+        )
+        await event_service.ingest(session, auth_subject, child_ingest)
+        await event_service.ingested(session, list(enqueue_events_mock.call_args[0]))
+
+        events = await event_repository.get_all_by_organization(auth_subject.subject.id)
+        assert len(events) == 1
+        child = events[0]
+        assert child.parent_id is None
+        assert child.pending_parent_external_id == "parent-event-123"
+
+        parent_ingest = EventsIngest(
+            events=[
+                EventCreateExternalCustomer(
+                    name="support_request",
+                    external_customer_id="test-customer-123",
+                    external_id="parent-event-123",
+                ),
+            ]
+        )
+        await event_service.ingest(session, auth_subject, parent_ingest)
+        await event_service.ingested(session, list(enqueue_events_mock.call_args[0]))
+
+        await session.refresh(child)
+        events = await event_repository.get_all_by_organization(auth_subject.subject.id)
+        parent = next(e for e in events if e.name == "support_request")
+
+        assert child.parent_id == parent.id
+        assert child.root_id == parent.id
+        assert child.pending_parent_external_id is None
+
+        # `enqueue_events` only carries the batch's freshly-inserted ids;
+        # orphan resolution happens inside `ingested`, not here.
+        assert enqueue_events_mock.call_count == 2
+        assert set(enqueue_events_mock.call_args_list[0][0]) == {child.id}
+        assert set(enqueue_events_mock.call_args_list[1][0]) == {parent.id}
+
+        # The parent's `ingested` run resolves the child and sends both to
+        # Tinybird.
+        tinybird_calls = [
+            c for c in enqueue_job_mock.call_args_list if c.args[0] == "tinybird.ingest"
+        ]
+        assert len(tinybird_calls) == 1
+        tinybird_payload = tinybird_calls[0].args[1]
+        assert {tb["id"] for tb in tinybird_payload} == {str(parent.id), str(child.id)}
+
+    @pytest.mark.auth(AuthSubjectFixture(subject="organization"))
+    async def test_deep_chain_resolves_when_root_arrives_last(
+        self,
+        enqueue_job_mock: MagicMock,
+        enqueue_events_mock: AsyncMock,
+        session: AsyncSession,
+        auth_subject: AuthSubject[Organization],
+    ) -> None:
+        event_repository = EventRepository.from_session(session)
+
+        for name, external_id, parent_id in [
+            ("ggc", "ggc-id", "gc-id"),
+            ("gc", "gc-id", "c-id"),
+            ("c", "c-id", "p-id"),
+        ]:
+            await event_service.ingest(
+                session,
+                auth_subject,
+                EventsIngest(
+                    events=[
+                        EventCreateExternalCustomer(
+                            name=name,
+                            external_customer_id="test-customer-123",
+                            external_id=external_id,
+                            parent_id=parent_id,
+                        ),
+                    ]
+                ),
+            )
+            await event_service.ingested(
+                session, list(enqueue_events_mock.call_args[0])
+            )
+
+        events = await event_repository.get_all_by_organization(auth_subject.subject.id)
+        assert len(events) == 3
+        by_name = {e.name: e for e in events}
+        # ggc and gc are linked to their parent rows as those rows now exist,
+        # but root_id stays None until the real root arrives.
+        assert by_name["ggc"].parent_id == by_name["gc"].id
+        assert by_name["ggc"].pending_parent_external_id is None
+        assert by_name["ggc"].root_id is None
+        assert by_name["gc"].parent_id == by_name["c"].id
+        assert by_name["gc"].pending_parent_external_id is None
+        assert by_name["gc"].root_id is None
+        # c references "p-id" which doesn't exist yet.
+        assert by_name["c"].parent_id is None
+        assert by_name["c"].pending_parent_external_id == "p-id"
+        assert by_name["c"].root_id is None
+
+        await event_service.ingest(
+            session,
+            auth_subject,
+            EventsIngest(
+                events=[
+                    EventCreateExternalCustomer(
+                        name="p",
+                        external_customer_id="test-customer-123",
+                        external_id="p-id",
+                    ),
+                ]
+            ),
+        )
+        await event_service.ingested(session, list(enqueue_events_mock.call_args[0]))
+
+        events = await event_repository.get_all_by_organization(auth_subject.subject.id)
+        by_name = {e.name: e for e in events}
+        p = by_name["p"]
+        c = by_name["c"]
+        gc = by_name["gc"]
+        ggc = by_name["ggc"]
+
+        for e in events:
+            await session.refresh(e)
+
+        assert p.parent_id is None
+        assert p.root_id == p.id
+
+        assert c.parent_id == p.id
+        assert c.root_id == p.id
+        assert c.pending_parent_external_id is None
+
+        assert gc.parent_id == c.id
+        assert gc.root_id == p.id
+        assert gc.pending_parent_external_id is None
+
+        assert ggc.parent_id == gc.id
+        assert ggc.root_id == p.id
+        assert ggc.pending_parent_external_id is None
+
+        # `enqueue_events` only carries the batch's freshly-inserted ids,
+        # so each call has exactly the one event from that batch.
+        assert enqueue_events_mock.call_count == 4
+        assert set(enqueue_events_mock.call_args_list[-1][0]) == {p.id}
+
+        # Resolution propagates inside `p`'s `ingested` run and pulls the
+        # whole orphan chain into the Tinybird payload.
+        last_tinybird_call = next(
+            c
+            for c in reversed(enqueue_job_mock.call_args_list)
+            if c.args[0] == "tinybird.ingest"
+        )
+        assert {tb["id"] for tb in last_tinybird_call.args[1]} == {
+            str(p.id),
+            str(c.id),
+            str(gc.id),
+            str(ggc.id),
         }
 
     @pytest.mark.auth(AuthSubjectFixture(subject="organization"))
