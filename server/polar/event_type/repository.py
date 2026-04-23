@@ -4,9 +4,9 @@ from uuid import UUID
 from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 
-from polar.auth.models import AuthSubject, Organization, User, is_organization, is_user
+from polar.authz.types import AccessibleOrganizationID
 from polar.kit.repository import RepositoryBase, RepositoryIDMixin
-from polar.models import EventType, UserOrganization
+from polar.models import EventType
 
 
 class EventTypeRepository(
@@ -14,27 +14,10 @@ class EventTypeRepository(
 ):
     model = EventType
 
-    def get_readable_statement(
-        self, auth_subject: AuthSubject[User | Organization]
+    def get_statement_by_org_ids(
+        self, org_ids: set[AccessibleOrganizationID]
     ) -> Select[tuple[EventType]]:
-        statement = self.get_base_statement()
-
-        if is_user(auth_subject):
-            user = auth_subject.subject
-            statement = statement.where(
-                EventType.organization_id.in_(
-                    select(UserOrganization.organization_id).where(
-                        UserOrganization.user_id == user.id,
-                        UserOrganization.is_deleted.is_(False),
-                    )
-                )
-            )
-        elif is_organization(auth_subject):
-            statement = statement.where(
-                EventType.organization_id == auth_subject.subject.id
-            )
-
-        return statement
+        return self.get_base_statement().where(EventType.organization_id.in_(org_ids))
 
     async def get_by_name_and_organization(
         self, name: str, organization_id: UUID
@@ -64,31 +47,6 @@ class EventTypeRepository(
         )
         result = await self.session.execute(statement)
         return {(et.organization_id, et.name): et for et in result.scalars().all()}
-
-    async def get_readable_organization_ids(
-        self,
-        auth_subject: AuthSubject[User | Organization],
-        organization_id: Sequence[UUID] | None,
-    ) -> Sequence[UUID]:
-        if is_organization(auth_subject):
-            if (
-                organization_id is not None
-                and auth_subject.subject.id not in organization_id
-            ):
-                return []
-            return [auth_subject.subject.id]
-
-        statement = select(UserOrganization.organization_id).where(
-            UserOrganization.user_id == auth_subject.subject.id,
-            UserOrganization.is_deleted.is_(False),
-        )
-        if organization_id is not None:
-            statement = statement.where(
-                UserOrganization.organization_id.in_(organization_id)
-            )
-
-        result = await self.session.execute(statement)
-        return list(dict.fromkeys(result.scalars().all()))
 
     async def get_or_create(self, name: str, organization_id: UUID) -> EventType:
         existing = await self.get_by_name_and_organization(name, organization_id)

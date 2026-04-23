@@ -942,6 +942,7 @@ class TestCreate:
             == "https://example.com/success?checkout_id={CHECKOUT_SESSION_ID}"
         )
 
+    @pytest.mark.auth
     async def test_silent_calculate_tax_error(
         self,
         session: AsyncSession,
@@ -975,6 +976,7 @@ class TestCreate:
             (TaxBehavior.inclusive, 1000, 100, 900),
         ],
     )
+    @pytest.mark.auth
     async def test_valid_calculate_tax(
         self,
         tax_behavior: TaxBehavior,
@@ -986,6 +988,7 @@ class TestCreate:
         auth_subject: AuthSubject[User | Organization],
         calculate_tax_mock: AsyncMock,
         organization: Organization,
+        user_organization: UserOrganization,
     ) -> None:
         product = await create_product(
             save_fixture,
@@ -1086,6 +1089,7 @@ class TestCreate:
         "custom_field_data",
         [pytest.param({"text": "abc", "select": "c"}, id="invalid select")],
     )
+    @pytest.mark.auth
     async def test_invalid_custom_field_data(
         self,
         custom_field_data: dict[str, Any],
@@ -1110,6 +1114,7 @@ class TestCreate:
         for error in e.value.errors():
             assert error["loc"][0:2] == ("body", "custom_field_data")
 
+    @pytest.mark.auth
     async def test_valid_custom_field_data(
         self,
         session: AsyncSession,
@@ -1131,6 +1136,7 @@ class TestCreate:
 
         assert checkout.custom_field_data == {"text": "abc", "select": "a"}
 
+    @pytest.mark.auth
     async def test_valid_missing_required_custom_field(
         self,
         session: AsyncSession,
@@ -1178,6 +1184,7 @@ class TestCreate:
 
         assert checkout.embed_origin == "https://example.com"
 
+    @pytest.mark.auth
     async def test_valid_tax_not_applicable(
         self,
         session: AsyncSession,
@@ -1202,6 +1209,7 @@ class TestCreate:
         assert checkout.customer_billing_address is not None
         assert checkout.customer_billing_address.country == "FR"
 
+    @pytest.mark.auth
     async def test_valid_discount(
         self,
         session: AsyncSession,

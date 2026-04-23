@@ -14,6 +14,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import contains_eager
 
 from polar.auth.models import AuthSubject, is_organization, is_user
+from polar.authz.service import get_accessible_org_ids
+from polar.authz.types import AccessibleOrganizationID
 from polar.customer.repository import CustomerRepository
 from polar.customer_meter.repository import CustomerMeterRepository
 from polar.event.tinybird_repository import TinybirdEventRepository
@@ -155,7 +157,7 @@ class EventService:
         aggregate_fields: Sequence[str] = (),
         cursor_pagination: bool = False,
     ) -> tuple[Sequence[Event], int]:
-        organization_ids = await self._get_readable_organization_ids(
+        organization_ids = await self._get_organization_ids_for_subject(
             session, auth_subject, organization_id
         )
         if not organization_ids:
@@ -181,13 +183,13 @@ class EventService:
         if customer_id is not None:
             all_external_ids.extend(
                 await customer_repository.get_readable_external_ids_by_ids(
-                    auth_subject, customer_id
+                    organization_ids, customer_id
                 )
             )
         if external_customer_id is not None:
             all_customer_ids.extend(
                 await customer_repository.get_readable_ids_by_external_ids(
-                    auth_subject, external_customer_id
+                    organization_ids, external_customer_id
                 )
             )
 
@@ -196,7 +198,7 @@ class EventService:
         offset = (pagination.page - 1) * pagination.limit
 
         tb_ids, tb_count = await tinybird_repository.get_event_ids_and_count(
-            organization_id=organization_ids,
+            organization_id=list(organization_ids),
             limit=pagination.limit,
             offset=offset,
             descending=descending,
@@ -222,10 +224,12 @@ class EventService:
 
         event_uuids = [uuid.UUID(id_str) for id_str in tb_ids]
         repository = EventRepository.from_session(session)
-        events = await repository.get_by_ids_with_eager(event_uuids, organization_ids)
+        events = await repository.get_by_ids_with_eager(
+            event_uuids, list(organization_ids)
+        )
 
         all_aggregates = await tinybird_repository.get_batch_descendant_aggregates(
-            organization_ids, [e.id for e in events], aggregate_fields
+            list(organization_ids), [e.id for e in events], aggregate_fields
         )
         empty_sums = {f.replace(".", "_"): 0.0 for f in aggregate_fields}
 
@@ -283,14 +287,14 @@ class EventService:
         id: uuid.UUID,
         aggregate_fields: Sequence[str] = (),
     ) -> Event | None:
-        organization_ids = await self._get_readable_organization_ids(
+        organization_ids = await self._get_organization_ids_for_subject(
             session, auth_subject, organization_id=None
         )
         if not organization_ids:
             return None
 
         tinybird_repository = TinybirdEventRepository()
-        if not await tinybird_repository.event_exists(organization_ids, id):
+        if not await tinybird_repository.event_exists(list(organization_ids), id):
             return None
 
         repository = EventRepository.from_session(session)
@@ -300,7 +304,7 @@ class EventService:
 
         if aggregate_fields:
             child_count, sums = await tinybird_repository.get_descendant_aggregates(
-                organization_ids, id, aggregate_fields
+                list(organization_ids), id, aggregate_fields
             )
             event.child_count = child_count  # type: ignore[attr-defined]
             metadata = event.user_metadata or {}
@@ -360,7 +364,7 @@ class EventService:
             end_date.year, end_date.month, end_date.day, 23, 59, 59, 999999, timezone
         )
 
-        organization_ids = await self._get_readable_organization_ids(
+        organization_ids = await self._get_organization_ids_for_subject(
             session, auth_subject, organization_id
         )
         if not organization_ids:
@@ -386,18 +390,18 @@ class EventService:
         if customer_id is not None:
             all_external_ids.extend(
                 await customer_repository.get_readable_external_ids_by_ids(
-                    auth_subject, customer_id
+                    organization_ids, customer_id
                 )
             )
         if external_customer_id is not None:
             all_customer_ids.extend(
                 await customer_repository.get_readable_ids_by_external_ids(
-                    auth_subject, external_customer_id
+                    organization_ids, external_customer_id
                 )
             )
 
         tb_query_kwargs: dict[str, Any] = dict(
-            organization_id=organization_ids,
+            organization_id=list(organization_ids),
             start_timestamp=start_timestamp,
             end_timestamp=end_timestamp,
             aggregate_fields=tuple(aggregate_fields),
@@ -425,7 +429,7 @@ class EventService:
         all_names = list({b.name for b in tb_buckets} | {b.name for b in tb_totals})
         event_type_repository = EventTypeRepository.from_session(session)
         event_types_by_name = await event_type_repository.get_by_names_and_organization(
-            all_names, organization_ids
+            all_names, list(organization_ids)
         )
 
         def _to_decimal_dict(d: dict[str, float]) -> dict[str, Decimal]:
@@ -540,31 +544,30 @@ class EventService:
             end_date.year, end_date.month, end_date.day, 23, 59, 59, 999999, timezone
         )
 
-        organization_ids = await self._get_readable_organization_ids(
+        organization_ids = await self._get_organization_ids_for_subject(
             session, auth_subject, organization_id
         )
         if not organization_ids:
             return ListPropertyGroupStats(items=[])
-
         customer_repository = CustomerRepository.from_session(session)
         all_customer_ids: list[uuid.UUID] = list(customer_id or [])
         all_external_ids: list[str] = list(external_customer_id or [])
         if customer_id is not None:
             all_external_ids.extend(
                 await customer_repository.get_readable_external_ids_by_ids(
-                    auth_subject, customer_id
+                    organization_ids, customer_id
                 )
             )
         if external_customer_id is not None:
             all_customer_ids.extend(
                 await customer_repository.get_readable_ids_by_external_ids(
-                    auth_subject, external_customer_id
+                    organization_ids, external_customer_id
                 )
             )
 
         tinybird_event_repository = TinybirdEventRepository()
         rows = await tinybird_event_repository.get_property_group_stats(
-            organization_id=organization_ids,
+            organization_id=list(organization_ids),
             property=property,
             aggregate_fields=tuple(aggregate_fields),
             start_timestamp=start_timestamp,
@@ -606,31 +609,30 @@ class EventService:
             end_date.year, end_date.month, end_date.day, 23, 59, 59, 999999, timezone
         )
 
-        organization_ids = await self._get_readable_organization_ids(
+        organization_ids = await self._get_organization_ids_for_subject(
             session, auth_subject, organization_id
         )
         if not organization_ids:
             return ListCustomerStats(items=[])
-
         customer_repository = CustomerRepository.from_session(session)
         all_customer_ids: list[uuid.UUID] = list(customer_id or [])
         all_external_ids: list[str] = list(external_customer_id or [])
         if customer_id is not None:
             all_external_ids.extend(
                 await customer_repository.get_readable_external_ids_by_ids(
-                    auth_subject, customer_id
+                    organization_ids, customer_id
                 )
             )
         if external_customer_id is not None:
             all_customer_ids.extend(
                 await customer_repository.get_readable_ids_by_external_ids(
-                    auth_subject, external_customer_id
+                    organization_ids, external_customer_id
                 )
             )
 
         tinybird_event_repository = TinybirdEventRepository()
         rows = await tinybird_event_repository.get_customer_stats(
-            organization_id=organization_ids,
+            organization_id=list(organization_ids),
             aggregate_fields=tuple(aggregate_fields),
             start_timestamp=start_timestamp,
             end_timestamp=end_timestamp,
@@ -691,31 +693,30 @@ class EventService:
             end_date.year, end_date.month, end_date.day, 23, 59, 59, 999999, timezone
         )
 
-        organization_ids = await self._get_readable_organization_ids(
+        organization_ids = await self._get_organization_ids_for_subject(
             session, auth_subject, organization_id
         )
         if not organization_ids:
             return ListVarianceEvents(items=[])
-
         customer_repository = CustomerRepository.from_session(session)
         all_customer_ids: list[uuid.UUID] = list(customer_id or [])
         all_external_ids: list[str] = list(external_customer_id or [])
         if customer_id is not None:
             all_external_ids.extend(
                 await customer_repository.get_readable_external_ids_by_ids(
-                    auth_subject, customer_id
+                    organization_ids, customer_id
                 )
             )
         if external_customer_id is not None:
             all_customer_ids.extend(
                 await customer_repository.get_readable_ids_by_external_ids(
-                    auth_subject, external_customer_id
+                    organization_ids, external_customer_id
                 )
             )
 
         tinybird_event_repository = TinybirdEventRepository()
         rows = await tinybird_event_repository.get_variance_events(
-            organization_id=organization_ids,
+            organization_id=list(organization_ids),
             aggregate_fields=tuple(aggregate_fields),
             start_timestamp=start_timestamp,
             end_timestamp=end_timestamp,
@@ -757,25 +758,24 @@ class EventService:
             (EventNamesSortProperty.last_seen, True)
         ],
     ) -> tuple[Sequence[EventName], int]:
-        organization_ids = await self._get_readable_organization_ids(
+        organization_ids = await self._get_organization_ids_for_subject(
             session, auth_subject, organization_id
         )
         if not organization_ids:
             return [], 0
-
         customer_repository = CustomerRepository.from_session(session)
         all_customer_ids: list[uuid.UUID] = list(customer_id or [])
         all_external_ids: list[str] = list(external_customer_id or [])
         if customer_id is not None:
             all_external_ids.extend(
                 await customer_repository.get_readable_external_ids_by_ids(
-                    auth_subject, customer_id
+                    organization_ids, customer_id
                 )
             )
         if external_customer_id is not None:
             all_customer_ids.extend(
                 await customer_repository.get_readable_ids_by_external_ids(
-                    auth_subject, external_customer_id
+                    organization_ids, external_customer_id
                 )
             )
 
@@ -793,7 +793,7 @@ class EventService:
                 tinybird_sorting.append(("occurrences", is_desc))
 
         tinybird_stats = await tinybird_repository.get_name_stats(
-            organization_id=organization_ids,
+            organization_id=list(organization_ids),
             customer_id=all_customer_ids,
             external_customer_id=all_external_ids,
             source=source,
@@ -842,7 +842,7 @@ class EventService:
         self,
         session: AsyncSession,
         auth_subject: AuthSubject[User | Organization],
-        organization_ids: Sequence[uuid.UUID],
+        organization_ids: set[AccessibleOrganizationID],
         *,
         filter: Filter | None = None,
         meter_id: uuid.UUID | None = None,
@@ -860,7 +860,9 @@ class EventService:
         numeric_metadata_property: str | None = None
         if meter_id is not None:
             meter_repository = MeterRepository.from_session(session)
-            meter = await meter_repository.get_readable_by_id(meter_id, auth_subject)
+            meter = await meter_repository.get_readable_by_id(
+                meter_id, organization_ids
+            )
             if meter is None:
                 raise PolarRequestValidationError(
                     [
@@ -885,9 +887,7 @@ class EventService:
             (
                 matching_cust_ids,
                 matching_ext_ids,
-            ) = await customer_repository.search_by_query(
-                auth_subject, organization_ids, query
-            )
+            ) = await customer_repository.search_by_query(organization_ids, query)
 
         return (
             query_filters,
@@ -1439,31 +1439,21 @@ class EventService:
             ]
         )
 
-    async def _get_readable_organization_ids(
+    async def _get_organization_ids_for_subject(
         self,
         session: AsyncSession,
         auth_subject: AuthSubject[User | Organization],
         organization_id: Sequence[uuid.UUID] | None,
-    ) -> Sequence[uuid.UUID]:
-        if is_organization(auth_subject):
-            if (
-                organization_id is not None
-                and auth_subject.subject.id not in organization_id
-            ):
-                return []
-            return [auth_subject.subject.id]
-
-        statement = select(UserOrganization.organization_id).where(
-            UserOrganization.user_id == auth_subject.subject.id,
-            UserOrganization.is_deleted.is_(False),
-        )
+    ) -> set[AccessibleOrganizationID]:
+        """Get accessible org IDs, optionally filtered to a subset."""
+        organization_ids = await get_accessible_org_ids(session, auth_subject)
         if organization_id is not None:
-            statement = statement.where(
-                UserOrganization.organization_id.in_(organization_id)
-            )
-
-        result = await session.execute(statement)
-        return list(dict.fromkeys(result.scalars().all()))
+            return {
+                AccessibleOrganizationID(oid)
+                for oid in organization_id
+                if oid in organization_ids
+            }
+        return set(organization_ids)
 
 
 event = EventService()

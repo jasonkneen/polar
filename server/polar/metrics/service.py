@@ -8,7 +8,9 @@ from zoneinfo import ZoneInfo
 import logfire
 from sqlalchemy import ColumnElement, FromClause, select, text
 
-from polar.auth.models import AuthSubject, is_organization, is_user
+from polar.auth.models import AuthSubject
+from polar.authz.service import get_accessible_org_ids
+from polar.authz.types import AccessibleOrganizationID
 from polar.config import settings
 from polar.customer.repository import CustomerRepository
 from polar.kit.time_queries import TimeInterval, get_timestamp_series_cte
@@ -18,7 +20,6 @@ from polar.models import (
     Organization,
     Product,
     User,
-    UserOrganization,
 )
 from polar.models.product import ProductBillingType
 from polar.organization.resolver import get_payload_organization
@@ -93,7 +94,7 @@ def _expand_metrics_with_dependencies(
 
 
 class _TinybirdFilters(NamedTuple):
-    org_ids: list[uuid.UUID]
+    org_ids: list[AccessibleOrganizationID]
     product_id: Sequence[uuid.UUID] | None
     customer_ids: list[uuid.UUID] | None
     external_customer_id: list[str] | None
@@ -110,7 +111,8 @@ class MetricsService:
         organization_id: Sequence[uuid.UUID] | None = None,
     ) -> Sequence[MetricDashboard]:
         repository = MetricDashboardRepository.from_session(session)
-        statement = repository.get_readable_statement(auth_subject)
+        org_ids = await get_accessible_org_ids(session, auth_subject)
+        statement = repository.get_statement_by_org_ids(org_ids)
         if organization_id is not None:
             statement = statement.where(
                 MetricDashboard.organization_id.in_(organization_id)
@@ -124,7 +126,8 @@ class MetricsService:
         id: uuid.UUID,
     ) -> MetricDashboard | None:
         repository = MetricDashboardRepository.from_session(session)
-        statement = repository.get_readable_statement(auth_subject).where(
+        org_ids = await get_accessible_org_ids(session, auth_subject)
+        statement = repository.get_statement_by_org_ids(org_ids).where(
             MetricDashboard.id == id
         )
         return await repository.get_one_or_none(statement)
@@ -438,22 +441,16 @@ class MetricsService:
         auth_subject: AuthSubject[User | Organization],
         *,
         organization_id: Sequence[uuid.UUID] | None = None,
-    ) -> list[uuid.UUID]:
-        if is_organization(auth_subject):
-            accessible: list[uuid.UUID] = [auth_subject.subject.id]
-        elif is_user(auth_subject):
-            stmt = select(UserOrganization.organization_id).where(
-                UserOrganization.user_id == auth_subject.subject.id,
-                UserOrganization.is_deleted.is_(False),
-            )
-            accessible = list(await session.scalars(stmt))
-        else:
-            return []
-
+    ) -> list[AccessibleOrganizationID]:
+        """Get accessible org IDs, optionally filtered to a subset."""
+        org_ids = await get_accessible_org_ids(session, auth_subject)
         if organization_id is not None and len(organization_id) > 0:
-            accessible_set = set(accessible)
-            return [oid for oid in organization_id if oid in accessible_set]
-        return accessible
+            return [
+                AccessibleOrganizationID(oid)
+                for oid in organization_id
+                if oid in org_ids
+            ]
+        return list(org_ids)
 
     async def _resolve_tinybird_filters(
         self,
@@ -476,7 +473,7 @@ class MetricsService:
             external_ids = [
                 eid
                 for eid in await customer_repository.get_readable_external_ids_by_ids(
-                    auth_subject, customer_id
+                    set(tb_org_ids), customer_id
                 )
                 if eid
             ]
@@ -537,7 +534,7 @@ class MetricsService:
         original_end_timestamp: datetime,
         timezone: ZoneInfo,
         interval: TimeInterval,
-        tb_org_ids: list[uuid.UUID],
+        tb_org_ids: list[AccessibleOrganizationID],
         product_id: Sequence[uuid.UUID] | None = None,
         billing_type: Sequence[ProductBillingType] | None = None,
         tb_customer_ids: list[uuid.UUID] | None = None,

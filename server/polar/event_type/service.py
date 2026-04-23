@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from polar.auth.models import AuthSubject
+from polar.authz.service import get_accessible_org_ids
 from polar.customer.repository import CustomerRepository
 from polar.event.system import SYSTEM_EVENT_LABELS
 from polar.event.tinybird_repository import TinybirdEventRepository
@@ -26,7 +27,8 @@ class EventTypeService:
         id: UUID,
     ) -> EventType | None:
         repository = EventTypeRepository.from_session(session)
-        statement = repository.get_readable_statement(auth_subject).where(
+        org_ids = await get_accessible_org_ids(session, auth_subject)
+        statement = repository.get_statement_by_org_ids(org_ids).where(
             EventType.id == id
         )
         return await repository.get_one_or_none(statement)
@@ -49,9 +51,10 @@ class EventTypeService:
         ],
     ) -> tuple[Sequence[EventTypeWithStats], int]:
         event_type_repository = EventTypeRepository.from_session(session)
-        organization_ids = await event_type_repository.get_readable_organization_ids(
-            auth_subject, organization_id
-        )
+        org_ids = await get_accessible_org_ids(session, auth_subject)
+        if organization_id is not None:
+            org_ids = org_ids & set(organization_id)
+        organization_ids = list(org_ids)
         if not organization_ids:
             return [], 0
 
@@ -61,13 +64,13 @@ class EventTypeService:
         if customer_id is not None:
             all_external_ids.extend(
                 await customer_repository.get_readable_external_ids_by_ids(
-                    auth_subject, customer_id
+                    org_ids, customer_id
                 )
             )
         if external_customer_id is not None:
             all_customer_ids.extend(
                 await customer_repository.get_readable_ids_by_external_ids(
-                    auth_subject, external_customer_id
+                    org_ids, external_customer_id
                 )
             )
 

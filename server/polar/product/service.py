@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import contains_eager, selectinload
 
 from polar.auth.models import AuthSubject, is_user
+from polar.authz.service import get_accessible_org_ids
 from polar.benefit.service import benefit as benefit_service
 from polar.checkout_link.repository import CheckoutLinkRepository
 from polar.custom_field.service import custom_field as custom_field_service
@@ -78,7 +79,8 @@ class ProductService:
         ],
     ) -> tuple[Sequence[Product], int]:
         repository = ProductRepository.from_session(session)
-        statement = repository.get_readable_statement(auth_subject).join(
+        org_ids = await get_accessible_org_ids(session, auth_subject)
+        statement = repository.get_statement_by_org_ids(org_ids).join(
             ProductPrice,
             onclause=(
                 ProductPrice.id
@@ -143,8 +145,9 @@ class ProductService:
         id: uuid.UUID,
     ) -> Product | None:
         repository = ProductRepository.from_session(session)
+        org_ids = await get_accessible_org_ids(session, auth_subject)
         statement = (
-            repository.get_readable_statement(auth_subject)
+            repository.get_statement_by_org_ids(org_ids)
             .where(Product.id == id)
             .options(*repository.get_eager_options())
         )
@@ -510,6 +513,7 @@ class ProductService:
         builtins.list[ValidationError],
     ]:
         meter_repository = MeterRepository.from_session(session)
+        meter_org_ids = await get_accessible_org_ids(session, auth_subject)
         prices: list[ProductPrice] = []
         prices_per_currency = defaultdict[str, list[tuple[ProductPrice, int]]](list)
         existing_prices: set[ProductPrice] = set()
@@ -564,7 +568,7 @@ class ProductService:
                         continue
 
                     price.meter = await meter_repository.get_readable_by_id(
-                        price_schema.meter_id, auth_subject
+                        price_schema.meter_id, meter_org_ids
                     )
                     if price.meter is None:
                         errors.append(

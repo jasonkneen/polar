@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.strategy_options import contains_eager
 
 from polar.auth.models import AuthSubject, Organization, User
+from polar.authz.service import get_accessible_org_ids
 from polar.config import settings
 from polar.customer.repository import CustomerRepository
 from polar.enums import TokenType
@@ -63,22 +64,21 @@ class CustomerSessionService(ResourceServiceReader[CustomerSession]):
         customer_create: CustomerSessionCreate,
     ) -> Customer:
         repository = CustomerRepository.from_session(session)
-        statement = repository.get_readable_statement(auth_subject).options(
-            joinedload(Customer.organization),
-        )
+        org_ids = await get_accessible_org_ids(session, auth_subject)
+        options = (joinedload(Customer.organization),)
 
         if isinstance(customer_create, CustomerSessionCustomerIDCreate):
-            statement = statement.where(Customer.id == customer_create.customer_id)
             id_field = "customer_id"
             id_value: uuid.UUID | str = customer_create.customer_id
-        else:
-            statement = statement.where(
-                Customer.external_id == customer_create.external_customer_id
+            customer = await repository.get_readable_by_id(
+                org_ids, customer_create.customer_id, options=options
             )
+        else:
             id_field = "external_customer_id"
             id_value = customer_create.external_customer_id
-
-        customer = await repository.get_one_or_none(statement)
+            customer = await repository.get_readable_by_external_id(
+                org_ids, customer_create.external_customer_id, options=options
+            )
 
         if customer is None:
             raise PolarRequestValidationError(

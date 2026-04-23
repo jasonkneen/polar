@@ -188,6 +188,7 @@ def frozen_time() -> Generator[datetime, None]:
 
 @pytest.mark.asyncio
 class TestCreate:
+    @pytest.mark.auth
     async def test_product_does_not_exist(
         self,
         session: AsyncSession,
@@ -210,6 +211,7 @@ class TestCreate:
         assert errors[1]["loc"] == ("body", "customer_id")
         assert errors[1]["msg"] == "Customer does not exist."
 
+    @pytest.mark.auth
     async def test_product_not_recurring(
         self,
         save_fixture: SaveFixture,
@@ -217,6 +219,7 @@ class TestCreate:
         auth_subject: AuthSubject[User],
         product_one_time: Product,
         customer: Customer,
+        user_organization: UserOrganization,
     ) -> None:
         subscription_create = SubscriptionCreateCustomer(
             product_id=product_one_time.id,
@@ -233,6 +236,7 @@ class TestCreate:
         assert errors[0]["loc"] == ("body", "product_id")
         assert errors[0]["msg"] == "Product is not a recurring product."
 
+    @pytest.mark.auth
     async def test_product_not_free(
         self,
         save_fixture: SaveFixture,
@@ -240,6 +244,7 @@ class TestCreate:
         auth_subject: AuthSubject[User],
         product: Product,
         customer: Customer,
+        user_organization: UserOrganization,
     ) -> None:
         subscription_create = SubscriptionCreateCustomer(
             product_id=product.id,
@@ -259,12 +264,14 @@ class TestCreate:
             == "Product is not free. The customer should go through a checkout to create a paid subscription."
         )
 
+    @pytest.mark.auth
     async def test_customer_does_not_exist_by_id(
         self,
         save_fixture: SaveFixture,
         session: AsyncSession,
         auth_subject: AuthSubject[User],
         product_recurring_free_price: Product,
+        user_organization: UserOrganization,
     ) -> None:
         subscription_create = SubscriptionCreateCustomer(
             product_id=product_recurring_free_price.id,
@@ -281,12 +288,14 @@ class TestCreate:
         assert errors[0]["loc"] == ("body", "customer_id")
         assert errors[0]["msg"] == "Customer does not exist."
 
+    @pytest.mark.auth
     async def test_customer_does_not_exist_by_external_id(
         self,
         save_fixture: SaveFixture,
         session: AsyncSession,
         auth_subject: AuthSubject[User],
         product_recurring_free_price: Product,
+        user_organization: UserOrganization,
     ) -> None:
         subscription_create = SubscriptionCreateExternalCustomer(
             product_id=product_recurring_free_price.id,
@@ -303,6 +312,7 @@ class TestCreate:
         assert errors[0]["loc"] == ("body", "external_customer_id")
         assert errors[0]["msg"] == "Customer does not exist."
 
+    @pytest.mark.auth
     async def test_valid_with_customer_id(
         self,
         enqueue_benefits_grants_mock: MagicMock,
@@ -312,6 +322,7 @@ class TestCreate:
         auth_subject: AuthSubject[User],
         product_recurring_free_price: Product,
         customer: Customer,
+        user_organization: UserOrganization,
     ) -> None:
         subscription_create = SubscriptionCreateCustomer(
             product_id=product_recurring_free_price.id,
@@ -343,6 +354,7 @@ class TestCreate:
         assert_hooks_called_once(subscription_hooks, {"activated", "updated"})
         enqueue_benefits_grants_mock.assert_called_once_with(session, subscription)
 
+    @pytest.mark.auth
     async def test_valid_with_external_customer_id(
         self,
         enqueue_benefits_grants_mock: MagicMock,
@@ -352,6 +364,7 @@ class TestCreate:
         auth_subject: AuthSubject[User],
         product_recurring_free_price: Product,
         customer_external_id: Customer,
+        user_organization: UserOrganization,
     ) -> None:
         assert customer_external_id.external_id is not None
 
@@ -372,6 +385,7 @@ class TestCreate:
         assert_hooks_called_once(subscription_hooks, {"activated", "updated"})
         enqueue_benefits_grants_mock.assert_called_once_with(session, subscription)
 
+    @pytest.mark.auth
     async def test_valid_free_seat_based(
         self,
         enqueue_benefits_grants_mock: MagicMock,
@@ -381,6 +395,7 @@ class TestCreate:
         auth_subject: AuthSubject[User],
         product_recurring_free_seat_based: Product,
         customer: Customer,
+        user_organization: UserOrganization,
     ) -> None:
         subscription_create = SubscriptionCreateCustomer(
             product_id=product_recurring_free_seat_based.id,
@@ -405,6 +420,7 @@ class TestCreate:
         assert_hooks_called_once(subscription_hooks, {"activated", "updated"})
         enqueue_benefits_grants_mock.assert_called_once_with(session, subscription)
 
+    @pytest.mark.auth
     async def test_paid_seat_based_rejected(
         self,
         save_fixture: SaveFixture,
@@ -412,6 +428,7 @@ class TestCreate:
         auth_subject: AuthSubject[User],
         organization: Organization,
         customer: Customer,
+        user_organization: UserOrganization,
     ) -> None:
         product = await create_product(
             save_fixture,
@@ -438,6 +455,7 @@ class TestCreate:
             == "Product is not free. The customer should go through a checkout to create a paid subscription."
         )
 
+    @pytest.mark.auth
     async def test_mixed_tier_seat_based_rejected(
         self,
         save_fixture: SaveFixture,
@@ -445,6 +463,7 @@ class TestCreate:
         auth_subject: AuthSubject[User],
         organization: Organization,
         customer: Customer,
+        user_organization: UserOrganization,
     ) -> None:
         """Product with multi-tier pricing where tier 1 is $0/seat but tier 2 is $10/seat."""
         product = await create_product(

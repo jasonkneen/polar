@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import joinedload
 
-from polar.auth.models import AuthSubject, Organization, User, is_organization, is_user
+from polar.authz.types import AccessibleOrganizationID
 from polar.kit.repository import (
     RepositoryBase,
     RepositorySoftDeletionIDMixin,
@@ -12,7 +12,6 @@ from polar.kit.repository import (
 )
 from polar.models.customer import Customer
 from polar.models.member import Member, MemberRole
-from polar.models.user_organization import UserOrganization
 from polar.postgres import AsyncReadSession, AsyncSession
 
 
@@ -178,25 +177,7 @@ class MemberRepository(
         result = await session.execute(statement)
         return result.scalars().all()
 
-    def get_readable_statement(
-        self, auth_subject: AuthSubject[User | Organization]
+    def get_statement_by_org_ids(
+        self, org_ids: set[AccessibleOrganizationID]
     ) -> Select[tuple[Member]]:
-        """Get a statement filtered by the auth subject's access to organizations."""
-        statement = self.get_base_statement()
-
-        if is_user(auth_subject):
-            user = auth_subject.subject
-            statement = statement.where(
-                Member.organization_id.in_(
-                    select(UserOrganization.organization_id).where(
-                        UserOrganization.user_id == user.id,
-                        UserOrganization.is_deleted.is_(False),
-                    )
-                )
-            )
-        elif is_organization(auth_subject):
-            statement = statement.where(
-                Member.organization_id == auth_subject.subject.id,
-            )
-
-        return statement
+        return self.get_base_statement().where(Member.organization_id.in_(org_ids))
