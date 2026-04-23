@@ -1,15 +1,15 @@
 from uuid import UUID
 
-from sqlalchemy import Select
+from sqlalchemy import Select, select
 
-from polar.auth.models import AuthSubject, User
+from polar.authz.types import AccessibleOrganizationID
 from polar.kit.repository import (
     Options,
     RepositoryBase,
     RepositorySoftDeletionIDMixin,
     RepositorySoftDeletionMixin,
 )
-from polar.models import PayoutAccount
+from polar.models import Organization, PayoutAccount
 
 
 class PayoutAccountRepository(
@@ -33,12 +33,13 @@ class PayoutAccountRepository(
         )
         return await self.get_one_or_none(statement)
 
-    def get_readable_statement(
-        self, auth_subject: AuthSubject[User]
+    def get_statement_by_org_ids(
+        self, org_ids: set[AccessibleOrganizationID]
     ) -> Select[tuple[PayoutAccount]]:
-        statement = self.get_base_statement()
-
-        user = auth_subject.subject
-        statement = statement.where(PayoutAccount.admin_id == user.id)
-
-        return statement
+        return self.get_base_statement().where(
+            PayoutAccount.id.in_(
+                select(Organization.payout_account_id).where(
+                    Organization.id.in_(org_ids)
+                )
+            )
+        )

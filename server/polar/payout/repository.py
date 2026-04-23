@@ -2,10 +2,10 @@ from collections.abc import Sequence
 from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import Select, exists, false, select
+from sqlalchemy import Select, exists, select
 from sqlalchemy.orm import joinedload
 
-from polar.auth.models import AuthSubject, Organization, User, is_organization, is_user
+from polar.authz.types import AccessibleOrganizationID
 from polar.config import settings
 from polar.enums import PayoutAccountType
 from polar.kit.repository import (
@@ -17,7 +17,7 @@ from polar.kit.repository import (
     SortingClause,
 )
 from polar.kit.utils import utc_now
-from polar.models import Payout, PayoutAccount, PayoutAttempt, Transaction
+from polar.models import Organization, Payout, PayoutAttempt, Transaction
 from polar.models.payout import PayoutStatus
 from polar.payout.sorting import PayoutSortProperty
 
@@ -87,21 +87,16 @@ class PayoutRepository(
             ),
         )
 
-    def get_readable_statement(
-        self, auth_subject: AuthSubject[User | Organization]
+    def get_statement_by_org_ids(
+        self, org_ids: set[AccessibleOrganizationID]
     ) -> Select[tuple[Payout]]:
-        statement = self.get_base_statement()
-
-        if is_user(auth_subject):
-            user = auth_subject.subject
-            statement = statement.join(Payout.payout_account).where(
-                PayoutAccount.admin_id == user.id
+        return self.get_base_statement().where(
+            Payout.payout_account_id.in_(
+                select(Organization.payout_account_id).where(
+                    Organization.id.in_(org_ids)
+                )
             )
-        elif is_organization(auth_subject):
-            # Only the admin of the account can access it
-            statement = statement.where(false())
-
-        return statement
+        )
 
     def get_sorting_clause(self, property: PayoutSortProperty) -> SortingClause:
         match property:

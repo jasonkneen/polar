@@ -1,9 +1,10 @@
 import uuid
 from uuid import UUID
 
-from sqlalchemy import Select, false
+from sqlalchemy import Select, select
 
-from polar.auth.models import AuthSubject, User, is_organization, is_user
+from polar.auth.models import User
+from polar.authz.types import AccessibleOrganizationID
 from polar.kit.repository import (
     Options,
     RepositoryBase,
@@ -46,16 +47,11 @@ class AccountRepository(
         )
         return await self.get_one_or_none(statement)
 
-    def get_readable_statement(
-        self, auth_subject: AuthSubject[User | Organization]
+    def get_statement_by_org_ids(
+        self, org_ids: set[AccessibleOrganizationID]
     ) -> Select[tuple[Account]]:
-        statement = self.get_base_statement()
-
-        if is_user(auth_subject):
-            user = auth_subject.subject
-            statement = statement.where(Account.admin_id == user.id)
-        elif is_organization(auth_subject):
-            # Only the admin of the account can access it
-            statement = statement.where(false())
-
-        return statement
+        return self.get_base_statement().where(
+            Account.id.in_(
+                select(Organization.account_id).where(Organization.id.in_(org_ids))
+            )
+        )
