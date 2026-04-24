@@ -260,7 +260,10 @@ const CheckoutPricingBreakdown = ({
             />
           </DetailRow>
           {meteredPrices.length > 0 && (
-            <DetailRow title={t('checkout.pricing.additionalMeteredUsage')} />
+            <DetailRow
+              title={t('checkout.pricing.additionalMeteredUsage')}
+              className="dark:border-polar-700 mt-2 border-t border-gray-200 pt-4"
+            />
           )}
           {meteredPrices.map((meteredPrice) => (
             <DetailRow
@@ -268,7 +271,11 @@ const CheckoutPricingBreakdown = ({
               key={meteredPrice.id}
               emphasis
             >
-              <MeteredPriceLabel price={meteredPrice} locale={locale} />
+              <MeteredPriceLabel
+                price={meteredPrice}
+                locale={locale}
+                discount={checkout.discount}
+              />
             </DetailRow>
           ))}
         </>
