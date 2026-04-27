@@ -6,8 +6,8 @@ from fastapi import Depends, Request, Security
 from fastapi.security import HTTPBearer, OpenIdConnect
 from makefun import with_signature
 
-from polar.auth.scope import RESERVED_SCOPES, Scope
-from polar.exceptions import Unauthorized
+from polar.auth.scope import Scope
+from polar.exceptions import NotPermitted, Unauthorized
 from polar.oauth2.exceptions import InsufficientScopeError
 
 from .models import (
@@ -20,6 +20,7 @@ from .models import (
     SubjectType,
     User,
     is_anonymous,
+    is_web_session,
 )
 
 oidc_scheme = OpenIdConnect(
@@ -192,13 +193,7 @@ def Authenticator(
             kind=Parameter.POSITIONAL_OR_KEYWORD,
             default=Security(
                 _get_auth_subject_factory(allowed_subjects_frozen),
-                scopes=sorted(
-                    [
-                        s.value
-                        for s in (required_scopes or {})
-                        if s not in RESERVED_SCOPES
-                    ]
-                ),
+                scopes=sorted(s.value for s in (required_scopes or {})),
             ),
         ),
     ]
@@ -218,18 +213,36 @@ def Authenticator(
 
 _WebUserOrAnonymous = Authenticator(
     allowed_subjects={Anonymous, User},
-    required_scopes={Scope.web_write},
+    required_scopes=None,
 )
+
+
+async def _web_user_or_anonymous(
+    auth_subject: Annotated[
+        AuthSubject[Anonymous | User], Depends(_WebUserOrAnonymous)
+    ],
+) -> AuthSubject[Anonymous | User]:
+    """Allow anonymous or web-session users. Reject API tokens."""
+    if not is_anonymous(auth_subject) and not is_web_session(auth_subject):
+        raise NotPermitted()
+    return auth_subject
+
+
 WebUserOrAnonymous = Annotated[
-    AuthSubject[Anonymous | User], Depends(_WebUserOrAnonymous)
+    AuthSubject[Anonymous | User], Depends(_web_user_or_anonymous)
 ]
 
-_WebUserRead = Authenticator(
-    allowed_subjects={User}, required_scopes={Scope.web_read, Scope.web_write}
-)
-WebUserRead = Annotated[AuthSubject[User], Depends(_WebUserRead)]
+_WebUserAuth = Authenticator(allowed_subjects={User}, required_scopes=None)
 
-_WebUserWrite = Authenticator(
-    allowed_subjects={User}, required_scopes={Scope.web_write}
-)
-WebUserWrite = Annotated[AuthSubject[User], Depends(_WebUserWrite)]
+
+async def _web_user(
+    auth_subject: Annotated[AuthSubject[User], Depends(_WebUserAuth)],
+) -> AuthSubject[User]:
+    """Allow web-session users only. Reject API tokens."""
+    if not is_web_session(auth_subject):
+        raise NotPermitted()
+    return auth_subject
+
+
+WebUserRead = Annotated[AuthSubject[User], Depends(_web_user)]
+WebUserWrite = Annotated[AuthSubject[User], Depends(_web_user)]

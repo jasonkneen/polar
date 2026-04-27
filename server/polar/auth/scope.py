@@ -111,14 +111,50 @@ class Scope(StrEnum):
         return json_schema
 
 
-RESERVED_SCOPES = {Scope.web_read, Scope.web_write}
-SCOPES_SUPPORTED = [s.value for s in Scope if s not in RESERVED_SCOPES]
+READ_ONLY_SCOPES: set[Scope] = {
+    Scope.openid,
+    Scope.profile,
+    Scope.email,
+    Scope.user_read,
+    Scope.organizations_read,
+    Scope.custom_fields_read,
+    Scope.discounts_read,
+    Scope.checkout_links_read,
+    Scope.checkouts_read,
+    Scope.transactions_read,
+    Scope.payouts_read,
+    Scope.products_read,
+    Scope.benefits_read,
+    Scope.events_read,
+    Scope.meters_read,
+    Scope.files_read,
+    Scope.subscriptions_read,
+    Scope.customers_read,
+    Scope.members_read,
+    Scope.wallets_read,
+    Scope.disputes_read,
+    Scope.customer_meters_read,
+    Scope.customer_seats_read,
+    Scope.orders_read,
+    Scope.refunds_read,
+    Scope.payments_read,
+    Scope.metrics_read,
+    Scope.webhooks_read,
+    Scope.license_keys_read,
+    Scope.customer_portal_read,
+    Scope.notifications_read,
+    Scope.notification_recipients_read,
+    Scope.organization_access_tokens_read,
+}
+
+# web_read/web_write are legacy — kept in Scope enum for session upgrade
+# but excluded from public-facing scope lists.
+_LEGACY_SCOPES = {Scope.web_read, Scope.web_write}
+SCOPES_SUPPORTED = [s.value for s in Scope if s not in _LEGACY_SCOPES]
 SCOPES_SUPPORTED_DISPLAY_NAMES: dict[Scope, str] = {
     Scope.openid: "OpenID",
     Scope.profile: "Read your profile",
     Scope.email: "Read your email address",
-    Scope.web_read: "Web Read Access",
-    Scope.web_write: "Web Write Access",
     Scope.user_read: "User Read",
     Scope.user_write: "Delete your user account",
     Scope.organizations_read: "Read your organizations",

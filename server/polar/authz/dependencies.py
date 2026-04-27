@@ -69,8 +69,6 @@ def OrgPolicyGuard(
 
     _allowed = allowed_subjects or {User, Organization}
     _scopes = required_scopes or {
-        Scope.web_read,
-        Scope.web_write,
         Scope.organizations_read,
         Scope.organizations_write,
     }
@@ -118,11 +116,30 @@ async def _check_policy(
 
 
 AuthorizeFinanceRead = Annotated[
-    AuthzContext[User | Organization], Depends(OrgPolicyGuard(finance.can_read))
+    AuthzContext[User | Organization],
+    Depends(
+        OrgPolicyGuard(
+            finance.can_read,
+            required_scopes={
+                Scope.transactions_read,
+                Scope.transactions_write,
+                Scope.payouts_read,
+                Scope.payouts_write,
+            },
+        )
+    ),
 ]
 AuthorizeFinanceWrite = Annotated[
     AuthzContext[User | Organization],
-    Depends(OrgPolicyGuard(finance.can_write)),
+    Depends(
+        OrgPolicyGuard(
+            finance.can_write,
+            required_scopes={
+                Scope.transactions_write,
+                Scope.payouts_write,
+            },
+        )
+    ),
 ]
 AuthorizeMembersManage = Annotated[
     AuthzContext[User],
@@ -130,7 +147,7 @@ AuthorizeMembersManage = Annotated[
         OrgPolicyGuard(
             members.can_manage,
             allowed_subjects={User},
-            required_scopes={Scope.web_write, Scope.organizations_write},
+            required_scopes={Scope.organizations_write},
         )
     ),
 ]
@@ -140,7 +157,7 @@ AuthorizeOrgDelete = Annotated[
         OrgPolicyGuard(
             org_policy.can_delete,
             allowed_subjects={User},
-            required_scopes={Scope.web_write, Scope.organizations_write},
+            required_scopes={Scope.organizations_write},
         )
     ),
 ]
@@ -150,7 +167,7 @@ AuthorizeOrgManagePayoutAccount = Annotated[
         OrgPolicyGuard(
             org_policy.can_manage_payout_account,
             allowed_subjects={User},
-            required_scopes={Scope.web_write, Scope.organizations_write},
+            required_scopes={Scope.organizations_write},
         )
     ),
 ]
@@ -206,7 +223,12 @@ def AccountPolicyGuard(policy_fn: PolicyFn) -> Any:
 
     _authenticator = Authenticator(
         allowed_subjects={User},
-        required_scopes={Scope.web_read, Scope.web_write},
+        required_scopes={
+            Scope.transactions_read,
+            Scope.transactions_write,
+            Scope.payouts_read,
+            Scope.payouts_write,
+        },
     )
 
     async def dependency(
@@ -254,7 +276,10 @@ def PayoutAccountPolicyGuard(
 
     _authenticator = Authenticator(
         allowed_subjects={User},
-        required_scopes={Scope.web_read, Scope.web_write},
+        required_scopes={
+            Scope.payouts_read,
+            Scope.payouts_write,
+        },
     )
 
     async def dependency(
