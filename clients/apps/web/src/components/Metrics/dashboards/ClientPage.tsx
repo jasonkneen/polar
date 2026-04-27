@@ -13,6 +13,7 @@ import {
 import { useMemo } from 'react'
 import { CancellationsContent } from './CancellationsContent'
 import { MetricGroup } from './MetricGroup'
+import { SeatsContent } from './SeatsContent'
 
 const TIME_INTERVALS = ['hour', 'day', 'week', 'month', 'year'] as const
 
@@ -87,6 +88,8 @@ export default function ClientPage({
           endDate={endDate}
           productId={productId ?? undefined}
         />
+      ) : metric === 'seats' ? (
+        <SeatsContent data={data} interval={interval} />
       ) : (
         <MetricGroup metricKeys={metrics} data={data} interval={interval} />
       )}
