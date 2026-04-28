@@ -16768,15 +16768,16 @@ export interface components {
       | components['schemas']['DiscountPercentageOnceForeverDuration']
       | components['schemas']['DiscountPercentageRepeatDuration']
     DiscountCreate:
-      | components['schemas']['DiscountFixedOnceForeverDurationCreate']
-      | components['schemas']['DiscountFixedRepeatDurationCreate']
-      | components['schemas']['DiscountPercentageOnceForeverDurationCreate']
-      | components['schemas']['DiscountPercentageRepeatDurationCreate']
+      | components['schemas']['DiscountFixedCreate']
+      | components['schemas']['DiscountPercentageCreate']
     /**
      * DiscountDuration
      * @enum {string}
      */
     DiscountDuration: 'once' | 'forever' | 'repeating'
+    DiscountFixedCreate:
+      | components['schemas']['DiscountFixedOnceForeverDurationCreate']
+      | components['schemas']['DiscountFixedRepeatDurationCreate']
     /**
      * DiscountFixedOnceForeverDuration
      * @description Schema for a fixed amount discount that is applied once or forever.
@@ -16953,9 +16954,17 @@ export interface components {
      * @description Schema to create a fixed amount discount that is applied once or forever.
      */
     DiscountFixedOnceForeverDurationCreate: {
-      duration: components['schemas']['DiscountDuration']
-      /** @description Type of the discount. */
-      type: components['schemas']['DiscountType']
+      /**
+       * @description For subscriptions, determines if the discount should be applied once on the first invoice or forever. (enum property replaced by openapi-typescript)
+       * @enum {string}
+       */
+      duration: 'forever' | 'once'
+      /**
+       * Type
+       * @default fixed
+       * @constant
+       */
+      type: 'fixed'
       /**
        * Amount
        * @deprecated
@@ -17202,7 +17211,11 @@ export interface components {
      *     for a certain number of months.
      */
     DiscountFixedRepeatDurationCreate: {
-      duration: components['schemas']['DiscountDuration']
+      /**
+       * @description For subscriptions, the discount should be applied on every invoice for a certain number of months, determined by `duration_in_months`. (enum property replaced by openapi-typescript)
+       * @enum {string}
+       */
+      duration: 'repeating'
       /**
        * Duration In Months
        * @description Number of months the discount should be applied.
@@ -17211,8 +17224,12 @@ export interface components {
        *     For example, to apply the discount for 2 years, set this to 24.
        */
       duration_in_months: number
-      /** @description Type of the discount. */
-      type: components['schemas']['DiscountType']
+      /**
+       * Type
+       * @default fixed
+       * @constant
+       */
+      type: 'fixed'
       /**
        * Amount
        * @deprecated
@@ -17277,6 +17294,9 @@ export interface components {
        */
       organization_id?: string | null
     }
+    DiscountPercentageCreate:
+      | components['schemas']['DiscountPercentageOnceForeverDurationCreate']
+      | components['schemas']['DiscountPercentageRepeatDurationCreate']
     /**
      * DiscountPercentageOnceForeverDuration
      * @description Schema for a percentage discount that is applied once or forever.
@@ -17419,9 +17439,17 @@ export interface components {
      * @description Schema to create a percentage discount that is applied once or forever.
      */
     DiscountPercentageOnceForeverDurationCreate: {
-      duration: components['schemas']['DiscountDuration']
-      /** @description Type of the discount. */
-      type: components['schemas']['DiscountType']
+      /**
+       * @description For subscriptions, determines if the discount should be applied once on the first invoice or forever. (enum property replaced by openapi-typescript)
+       * @enum {string}
+       */
+      duration: 'forever' | 'once'
+      /**
+       * Type
+       * @default percentage
+       * @constant
+       */
+      type: 'percentage'
       /**
        * Basis Points
        * @description Discount percentage in basis points.
@@ -17628,7 +17656,11 @@ export interface components {
      *     for a certain number of months.
      */
     DiscountPercentageRepeatDurationCreate: {
-      duration: components['schemas']['DiscountDuration']
+      /**
+       * @description For subscriptions, the discount should be applied on every invoice for a certain number of months, determined by `duration_in_months`. (enum property replaced by openapi-typescript)
+       * @enum {string}
+       */
+      duration: 'repeating'
       /**
        * Duration In Months
        * @description Number of months the discount should be applied.
@@ -17637,8 +17669,12 @@ export interface components {
        *     For example, to apply the discount for 2 years, set this to 24.
        */
       duration_in_months: number
-      /** @description Type of the discount. */
-      type: components['schemas']['DiscountType']
+      /**
+       * Type
+       * @default percentage
+       * @constant
+       */
+      type: 'percentage'
       /**
        * Basis Points
        * @description Discount percentage in basis points.
@@ -52108,6 +52144,18 @@ export const customerWalletSortPropertyValues: ReadonlyArray<
 export const discountDurationValues: ReadonlyArray<
   FlattenedDeepRequired<components>['schemas']['DiscountDuration']
 > = ['once', 'forever', 'repeating']
+export const discountFixedOnceForeverDurationCreateDurationValues: ReadonlyArray<
+  FlattenedDeepRequired<components>['schemas']['DiscountFixedOnceForeverDurationCreate']['duration']
+> = ['forever', 'once']
+export const discountFixedRepeatDurationCreateDurationValues: ReadonlyArray<
+  FlattenedDeepRequired<components>['schemas']['DiscountFixedRepeatDurationCreate']['duration']
+> = ['repeating']
+export const discountPercentageOnceForeverDurationCreateDurationValues: ReadonlyArray<
+  FlattenedDeepRequired<components>['schemas']['DiscountPercentageOnceForeverDurationCreate']['duration']
+> = ['forever', 'once']
+export const discountPercentageRepeatDurationCreateDurationValues: ReadonlyArray<
+  FlattenedDeepRequired<components>['schemas']['DiscountPercentageRepeatDurationCreate']['duration']
+> = ['repeating']
 export const discountSortPropertyValues: ReadonlyArray<
   FlattenedDeepRequired<components>['schemas']['DiscountSortProperty']
 > = [
