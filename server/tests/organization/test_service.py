@@ -212,6 +212,51 @@ class TestCreate:
 
         assert organization.subscription_settings is not None
 
+    @pytest.mark.auth
+    async def test_sandbox_creates_active_organization(
+        self,
+        mocker: MockerFixture,
+        auth_subject: AuthSubject[User],
+        session: AsyncSession,
+    ) -> None:
+        mocker.patch(
+            "polar.organization.service.settings.is_sandbox", return_value=True
+        )
+
+        organization = await organization_service.create(
+            session,
+            OrganizationCreate(name="Sandbox Org", slug="sandbox-org"),
+            auth_subject,
+        )
+
+        assert organization.status == OrganizationStatus.ACTIVE
+        assert (
+            organization.capabilities == STATUS_CAPABILITIES[OrganizationStatus.ACTIVE]
+        )
+        assert organization.status_updated_at is not None
+
+    @pytest.mark.auth
+    async def test_non_sandbox_creates_organization_with_default_status(
+        self,
+        mocker: MockerFixture,
+        auth_subject: AuthSubject[User],
+        session: AsyncSession,
+    ) -> None:
+        mocker.patch(
+            "polar.organization.service.settings.is_sandbox", return_value=False
+        )
+
+        organization = await organization_service.create(
+            session,
+            OrganizationCreate(name="Prod Org", slug="prod-org"),
+            auth_subject,
+        )
+
+        assert organization.status == OrganizationStatus.CREATED
+        assert (
+            organization.capabilities == STATUS_CAPABILITIES[OrganizationStatus.CREATED]
+        )
+
 
 @pytest.mark.asyncio
 class TestUpdateReviewSubmission:
@@ -754,6 +799,31 @@ class TestCheckReviewThreshold:
         assert result.total_balance == 5000
         enqueue_job_mock.assert_not_called()
 
+    async def test_sandbox_skips_review_transition(
+        self,
+        mocker: MockerFixture,
+        session: AsyncSession,
+        organization: Organization,
+    ) -> None:
+        organization.status = OrganizationStatus.ACTIVE
+        organization.next_review_threshold = 0
+        mocker.patch(
+            "polar.organization.service.settings.is_sandbox", return_value=True
+        )
+        mocker.patch(
+            "polar.organization.service.transaction_service.get_transactions_sum",
+            return_value=5000,
+        )
+        enqueue_job_mock = mocker.patch("polar.organization.service.enqueue_job")
+
+        result = await organization_service.check_review_threshold(
+            session, organization
+        )
+
+        assert result.status == OrganizationStatus.ACTIVE
+        assert result.total_balance == 5000
+        enqueue_job_mock.assert_not_called()
+
 
 @pytest.mark.asyncio
 class TestConfirmOrganizationReviewed:
@@ -1071,21 +1141,15 @@ class TestGetPaymentStatus:
         payment_status = organization_service.get_payment_status(organization)
         assert payment_status.payment_ready is True
 
-    def test_sandbox_environment_allows_payments(
+    def test_blocked_org_is_not_payment_ready(
         self,
         organization: Organization,
-        mocker: MockerFixture,
     ) -> None:
-        # An org with the capability disabled is normally not payment-ready,
-        # but sandbox bypasses every gate.
         organization.set_status(OrganizationStatus.BLOCKED)
-        mocker.patch(
-            "polar.organization.service.settings.is_sandbox", return_value=True
-        )
 
         payment_status = organization_service.get_payment_status(organization)
 
-        assert payment_status.payment_ready is True
+        assert payment_status.payment_ready is False
 
 
 @pytest.mark.asyncio
@@ -2410,10 +2474,6 @@ class TestCapabilityOverrides:
         }
 
         assert organization.can_accept_payments is False
-        assert (
-            organization_service.is_organization_ready_for_payment(organization)
-            is False
-        )
 
     async def test_can_authenticate_follows_api_access_capability(
         self,
