@@ -22,7 +22,6 @@ from polar.exceptions import (
     ValidationError,
 )
 from polar.integrations.loops.service import loops as loops_service
-from polar.integrations.plain.service import plain as plain_service
 from polar.integrations.polar.service import polar_self as polar_self_service
 from polar.kit.anonymization import anonymize_email_for_deletion, anonymize_for_deletion
 from polar.kit.currency import PresentmentCurrency
@@ -1091,7 +1090,12 @@ class OrganizationService:
     async def submit_appeal(
         self, session: AsyncSession, organization: Organization, appeal_reason: str
     ) -> OrganizationReview:
-        """Submit an appeal for organization review and create a Plain ticket."""
+        """Submit an appeal and enqueue the AI agent to decide it.
+
+        The appeal is decisive: the agent either approves the org or rejects
+        the appeal with a "contact support" message. No Plain ticket is
+        created automatically.
+        """
 
         repository = OrganizationReviewRepository.from_session(session)
         review = await repository.get_by_organization(organization.id)
@@ -1110,7 +1114,7 @@ class OrganizationService:
 
         session.add(review)
 
-        await plain_service.create_appeal_review_thread(session, organization, review)
+        enqueue_job("organization_review.appeal_submitted", organization.id)
 
         return review
 
