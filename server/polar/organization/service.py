@@ -6,6 +6,7 @@ from uuid import UUID
 
 import structlog
 from pydantic import BaseModel, Field
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
@@ -15,7 +16,11 @@ from polar.authz.service import get_accessible_org_ids
 from polar.config import settings
 from polar.customer.repository import CustomerRepository
 from polar.enums import InvoiceNumbering, SubscriptionProrationBehavior
-from polar.exceptions import PolarError, PolarRequestValidationError
+from polar.exceptions import (
+    PolarError,
+    PolarRequestValidationError,
+    ValidationError,
+)
 from polar.integrations.loops.service import loops as loops_service
 from polar.integrations.plain.service import plain as plain_service
 from polar.integrations.polar.service import polar_self as polar_self_service
@@ -63,6 +68,7 @@ from .repository import OrganizationRepository, OrganizationReviewRepository
 from .schemas import (
     OrganizationCreate,
     OrganizationDeletionBlockedReason,
+    OrganizationReviewSubmissionBody,
     OrganizationUpdate,
 )
 from .sorting import OrganizationSortProperty
@@ -398,15 +404,27 @@ class OrganizationService:
             },
         )
 
-        # Only store details once to avoid API overrides later w/o review
-        # We do allow initial details being set upon creation that will still require review,
-        # so upon creation we set details but not details_submitted_at
-        # so details_submitted_at effectively doubles as a "submit for review"
-        # timestamp, for now. We'll revisit this soon enough. @pieterbeulque
-        if not organization.details_submitted_at and update_schema.details:
+        if update_schema.details and organization.status == OrganizationStatus.CREATED:
             organization.details = cast(
                 OrganizationDetails, update_schema.details.model_dump()
             )
+
+        organization = await repository.update(organization, update_dict=update_dict)
+
+        await self._after_update(session, organization)
+        return organization
+
+    async def submit_for_review(
+        self, session: AsyncSession, organization: Organization
+    ) -> Organization:
+        try:
+            OrganizationReviewSubmissionBody.model_validate({"body": organization})
+        except PydanticValidationError as e:
+            raise PolarRequestValidationError(
+                cast(Sequence[ValidationError], e.errors())
+            ) from e
+
+        if organization.details_submitted_at is None:
             organization.details_submitted_at = datetime.now(UTC)
             enqueue_job(
                 "organization_review.run_agent",
@@ -414,7 +432,7 @@ class OrganizationService:
                 context=ReviewContext.SUBMISSION,
             )
 
-        organization = await repository.update(organization, update_dict=update_dict)
+        session.add(organization)
 
         await self._after_update(session, organization)
         return organization
@@ -1064,8 +1082,8 @@ class OrganizationService:
     ) -> OrganizationReview | None:
         """Get the existing AI review for an organization, if any.
 
-        The actual AI review is now triggered asynchronously via a background
-        task when organization details are first submitted (see update()).
+        The actual AI review is triggered asynchronously via a background
+        task when organization details are submitted for review.
         """
         repository = OrganizationReviewRepository.from_session(session)
         return await repository.get_by_organization(organization.id)
