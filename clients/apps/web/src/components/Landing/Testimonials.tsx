@@ -1,8 +1,4 @@
-import { StaticImage } from '@/components/Image/StaticImage'
-import Avatar from '@polar-sh/ui/components/atoms/Avatar'
 import Link from 'next/link'
-import { JSX } from 'react'
-import { twMerge } from 'tailwind-merge'
 import { StillaAI } from './Logos'
 
 export const companyTestimonials = [
@@ -55,22 +51,6 @@ const userTestimonials = [
     ),
   },
   {
-    link: 'https://x.com/steventey/status/1886124389357490670',
-    name: 'Steven Tey',
-    company: 'Dub',
-    verified: true,
-    avatar: '/assets/landing/testamonials/steven.jpg',
-    text: (
-      <>
-        <p>Open source + great DX + responsive support always wins.</p>
-        <p>
-          If you&apos;re selling stuff online and haven&apos;t tried Polar yet —
-          100% recommend doing so!
-        </p>
-      </>
-    ),
-  },
-  {
     link: 'https://x.com/mitchellh/status/1775925951668552005',
     name: 'Mitchell Hashimoto',
     company: 'Ghostty',
@@ -96,128 +76,31 @@ const userTestimonials = [
     avatar: '/assets/landing/testamonials/lee.jpg',
     text: <p>I switched to Polar a few weeks back. Best decision ever.</p>,
   },
-  {
-    link: 'https://x.com/pontusab/status/1886140577634463870',
-    name: 'Pontus Abrahamsson',
-    company: 'Midday',
-    verified: true,
-    avatar: '/assets/landing/testamonials/pontus.jpg',
-    text: <p>You can tell Polar is building DX first.</p>,
-  },
-  {
-    link: 'https://x.com/tonykelly/status/2016615925701570990',
-    name: 'Tony Kelly',
-    company: 'Spicebox',
-    verified: false,
-    avatar: '/assets/landing/testamonials/tony.jpg',
-    text: (
-      <>
-        <p>
-          Highly recommend using Polar for billing. Easiest and quickest payment
-          integration I’ve done in… ever actually!
-        </p>
-        <p>
-          Within 50 minutes of signing up had onboarded, integrated, tested in
-          sandbox and was migrating to Production.
-        </p>
-        <p>That’s hard to beat.</p>
-      </>
-    ),
-  },
 ]
 
-interface TestamonialProps {
-  name: string
-  company: string
-  avatar?: string
-  logo?: JSX.Element
-  text: React.ReactNode
-  link: string
-  className?: string
-  size?: 'sm' | 'lg'
-}
-
-export const Testamonial = ({
-  name,
-  company,
-  avatar,
-  logo,
-  text,
-  link,
-  className,
-  size = 'sm',
-}: TestamonialProps) => {
-  return (
-    <Link
-      href={link}
-      target="_blank"
-      className={twMerge(
-        'dark:bg-polar-900 dark:border-polar-800 dark:hover:bg-polar-800 flex h-full flex-col justify-between gap-x-4 gap-y-12 rounded-2xl border border-transparent bg-gray-50 p-8 transition-colors hover:bg-gray-100',
-        className,
-      )}
-    >
-      <div className="flex flex-col gap-y-8">
-        <div className="flex flex-row items-center justify-between gap-x-2">
-          {logo ? (
-            logo
-          ) : (
-            <Avatar
-              name={name}
-              avatar_url={avatar ?? ''}
-              className="h-12 w-12"
-              width={64}
-              height={64}
-              loading="lazy"
-              CustomImageComponent={StaticImage}
-            />
-          )}
+export const Testimonials = () => (
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    {userTestimonials.map((t, i) => (
+      <Link
+        key={t.name}
+        href={t.link}
+        target="_blank"
+        className="dark:bg-dark-900 dark:hover:bg-polar-900 flex flex-col justify-between gap-y-12 bg-neutral-50 p-10 transition-colors hover:bg-neutral-100"
+      >
+        <span className="dark:text-dark-500 text-neutral-500 tabular-nums">{`— 0${i + 1}`}</span>
+        <div className="flex h-full flex-col gap-y-6 text-xl leading-snug text-neutral-900 dark:text-white">
+          {t.text}
         </div>
-        <div
-          className={twMerge(
-            'dark:text-polar-50 flex flex-col text-gray-950',
-            size === 'lg' ? 'gap-y-8 text-xl' : 'gap-y-4 text-lg',
-          )}
-        >
-          {text}
+        <div className="dark:bg-polar-700 h-1 w-6 bg-gray-100" />
+        <div>
+          <div className="text-lg text-neutral-900 dark:text-white">
+            {t.name}
+          </div>
+          <div className="dark:text-dark-400 text-lg text-neutral-400">
+            {t.company}
+          </div>
         </div>
-      </div>
-      <div className="flex flex-col">
-        <p className="dark:text-polar-600 mb-4 text-gray-400">—</p>
-        <div className="flex flex-row items-center gap-x-2">
-          <span>{name}</span>
-        </div>
-        <span className="dark:text-polar-500 text-gray-500">{company}</span>
-      </div>
-    </Link>
-  )
-}
-
-export const Testimonials = () => {
-  return (
-    <div className="flex flex-col items-center gap-y-12 md:gap-y-24 md:py-12">
-      <div className="flex flex-col items-center gap-y-8">
-        <span className="dark:text-polar-500 text-lg text-gray-400">
-          Testimonials
-        </span>
-        <h1 className="w-fit max-w-2xl text-center text-3xl text-pretty md:text-5xl md:leading-normal">
-          Trusted by industry leaders
-        </h1>
-      </div>
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
-        {companyTestimonials.map((testimonial, index) => (
-          <Testamonial
-            key={`testimonial-${index}`}
-            size="lg"
-            className={index === 0 ? 'xl:col-span-2' : ''}
-            {...testimonial}
-          />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {userTestimonials.map((testimonial, index) => (
-          <Testamonial key={`testimonial-${index}`} {...testimonial} />
-        ))}
-      </div>
-    </div>
-  )
-}
+      </Link>
+    ))}
+  </div>
+)

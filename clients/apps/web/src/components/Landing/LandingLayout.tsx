@@ -25,7 +25,7 @@ import { NavPopover, NavPopoverSection } from './NavPopover'
 
 export default function Layout({ children }: PropsWithChildren) {
   return (
-    <div className="dark:bg-polar-950 relative flex flex-col overflow-x-hidden bg-white px-0 md:w-full md:flex-1 md:items-center md:px-4">
+    <div className="dark:bg-polar-950 relative flex flex-col overflow-x-clip bg-white px-0 md:w-full md:flex-1 md:items-center md:px-4">
       <div className="flex flex-col gap-y-2 md:w-full">
         <LandingPageDesktopNavigation />
         <SidebarProvider className="absolute inset-0 flex flex-col items-start md:hidden">
@@ -292,7 +292,7 @@ const LandingPageDesktopNavigation = () => {
     <div className="dark:text-polar-50 dark:bg-polar-950 sticky top-0 z-10 hidden w-full flex-col items-center gap-12 bg-white py-8 md:flex">
       <div className="relative flex w-full flex-row items-center justify-between lg:max-w-7xl">
         <Link href="/">
-          <PolarLogotype logoVariant="icon" size={40} />
+          <PolarLogotype logoVariant="logotype" size={120} />
         </Link>
 
         <ul className="absolute left-1/2 mx-auto flex -translate-x-1/2 flex-row gap-x-8 font-medium">

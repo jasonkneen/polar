@@ -1,28 +1,45 @@
 'use client'
 
-import { SyntaxHighlighterProvider } from '../SyntaxHighlighterShiki/SyntaxHighlighterClient'
-import { CustomerCard } from './billing/CustomerCard'
-import { Ingestion } from './billing/Ingestion'
-import { EventStream } from './EventStream'
+import { RadialSpinner } from './graphics/RadialSpinner'
+import { GaugeSweep } from './graphics/GaugeSweep'
+import { OrbitingSpheres } from './graphics/OrbitingSpheres'
 
-export const Usage = () => {
-  return (
-    <SyntaxHighlighterProvider>
-      <div className="flex w-full flex-col gap-y-16">
-        <div className="flex flex-col items-center gap-y-8">
-          <span className="dark:text-polar-500 font-mono text-lg text-gray-500">
-            billing = fn(events)
-          </span>
-          <h1 className="w-fit max-w-3xl text-center text-3xl text-pretty md:text-5xl md:leading-normal">
-            Usage Billing on Autopilot
-          </h1>
+const LAYERS = [
+  { id: '01', name: 'Ingest', desc: 'Stream every call, inference & request.' },
+  {
+    id: '02',
+    name: 'Aggregate',
+    desc: 'Transform raw signals into billable usage.',
+  },
+  {
+    id: '03',
+    name: 'Charge',
+    desc: 'Generate invoices and collect payment automatically.',
+  },
+]
+
+export const Usage = () => (
+  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    {LAYERS.map((l, i) => (
+      <div key={l.id} className="dark:bg-dark-900 flex flex-col bg-neutral-50">
+        {/* Graphic */}
+        <div className="aspect-square">
+          {i === 0 && <RadialSpinner />}
+          {i === 1 && <GaugeSweep />}
+          {i === 2 && <OrbitingSpheres />}
         </div>
-        <div className="grid w-full grid-cols-1 grid-rows-2 gap-8 xl:grid-cols-2">
-          <Ingestion />
-          <EventStream />
-          <CustomerCard />
+        {/* Label */}
+        <div className="flex flex-col px-8 py-8">
+          <div className="flex flex-col gap-4">
+            <span className="text-2xl text-neutral-900 dark:text-white">
+              {l.id} — {l.name}
+            </span>
+            <span className="dark:text-dark-300 text-xl text-neutral-500">
+              {l.desc}
+            </span>
+          </div>
         </div>
       </div>
-    </SyntaxHighlighterProvider>
-  )
-}
+    ))}
+  </div>
+)
