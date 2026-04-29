@@ -396,6 +396,20 @@ class Settings(BaseSettings):
         # USD, default
         "usd": _DEFAULT_ACCOUNT_PAYOUT_MINIMUM_BALANCE,
     }
+
+    # Stripe enforces per-country minimum payout amounts in the recipient's
+    # local currency. For most countries the per-currency minimum above
+    # already exceeds the country minimum after FX conversion, but a few
+    # don't fit that pattern: USD-denominated countries with a higher local
+    # minimum than the default $10, and BSD (not listed per-currency above).
+    # Values are in USD cents and indexed by ISO 3166-1 alpha-2 country
+    # code, rounded up to the next multiple of $5 USD for FX headroom. See:
+    # https://docs.stripe.com/global-payouts/send-money
+    ACCOUNT_PAYOUT_MINIMUM_BALANCE_PER_PAYOUT_COUNTRY: dict[str, int] = {
+        "BS": 3000,  # Bahamas: 25 BSD
+        "SV": 3000,  # El Salvador: 30 USD
+        "PA": 5000,  # Panama: 50 USD
+    }
     PLATFORM_FEE_BASIS_POINTS: int = 400
     PLATFORM_FEE_FIXED: int = 40
 
@@ -553,10 +567,14 @@ class Settings(BaseSettings):
     def stripe_descriptor_suffix_max_length(self) -> int:
         return 22 - len("* ") - len(self.STRIPE_STATEMENT_DESCRIPTOR)
 
-    def get_minimum_payout_for_currency(self, currency: str) -> int:
-        return self.ACCOUNT_PAYOUT_MINIMUM_BALANCE_PER_PAYOUT_CURRENCY.get(
+    def get_minimum_payout(self, currency: str, country: str) -> int:
+        currency_minimum = self.ACCOUNT_PAYOUT_MINIMUM_BALANCE_PER_PAYOUT_CURRENCY.get(
             currency.lower(), self._DEFAULT_ACCOUNT_PAYOUT_MINIMUM_BALANCE
         )
+        country_minimum = self.ACCOUNT_PAYOUT_MINIMUM_BALANCE_PER_PAYOUT_COUNTRY.get(
+            country.upper(), 0
+        )
+        return max(currency_minimum, country_minimum)
 
     def get_pydantic_gateway_model(
         self, model: str | None = None
