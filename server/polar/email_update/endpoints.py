@@ -50,7 +50,7 @@ async def verify_email_update(
     session: AsyncSession = Depends(get_db_session),
 ) -> RedirectResponse:
     try:
-        user = await email_update_service.verify(session, token)
+        user = await email_update_service.verify(session, token, auth_subject.subject)
     except EmailUpdateError as e:
         raise PolarRedirectionError(
             e.message, e.status_code, return_to=return_to
