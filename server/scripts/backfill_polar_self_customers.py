@@ -7,7 +7,7 @@ import dramatiq
 import structlog
 import typer
 from rich.progress import Progress
-from sqlalchemy import String, cast, select
+from sqlalchemy import select
 
 from polar import tasks  # noqa: F401
 from polar.auth.models import AuthSubject
@@ -51,15 +51,15 @@ class _OrganizationTally:
     subscriptions: int = 0
 
 
-async def _load_active_organizations(
+async def _load_active_organization_ids(
     session: AsyncSession,
     *,
     self_org_id: uuid.UUID,
     exclude_external_ids: set[str],
     limit: int | None,
-) -> Sequence[Organization]:
+) -> list[uuid.UUID]:
     statement = (
-        select(Organization)
+        select(Organization.id)
         .where(
             Organization.deleted_at.is_(None),
             Organization.status != OrganizationStatus.BLOCKED,
@@ -67,14 +67,13 @@ async def _load_active_organizations(
         )
         .order_by(Organization.created_at)
     )
-    if exclude_external_ids:
-        statement = statement.where(
-            cast(Organization.id, String).notin_(exclude_external_ids)
-        )
-    if limit is not None:
-        statement = statement.limit(limit)
     result = await session.execute(statement)
-    return result.scalars().all()
+    organization_ids = [
+        org_id for (org_id,) in result.all() if str(org_id) not in exclude_external_ids
+    ]
+    if limit is not None:
+        organization_ids = organization_ids[:limit]
+    return organization_ids
 
 
 async def _load_active_members(
@@ -193,13 +192,13 @@ async def run_backfill(
     existing_external_ids = await _load_existing_external_ids(session, self_org.id)
     typer.echo(f"  Found {len(existing_external_ids)} existing customers")
 
-    organizations = await _load_active_organizations(
+    organization_ids = await _load_active_organization_ids(
         session,
         self_org_id=self_org.id,
         exclude_external_ids=existing_external_ids,
         limit=limit,
     )
-    typer.echo(f"Loaded {len(organizations)} candidate organizations")
+    typer.echo(f"Loaded {len(organization_ids)} candidate organizations")
 
     async def commit_and_flush() -> None:
         await session.commit()
@@ -210,9 +209,13 @@ async def run_backfill(
 
     with Progress() as progress:
         task = progress.add_task(
-            "[cyan]Creating customers...", total=len(organizations)
+            "[cyan]Creating customers...", total=len(organization_ids)
         )
-        for organization in organizations:
+        for organization_id in organization_ids:
+            organization = await session.get(Organization, organization_id)
+            if organization is None:
+                progress.advance(task)
+                continue
             members = await _load_active_members(session, organization.id)
             if not members:
                 log.warning(
