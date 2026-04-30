@@ -6,13 +6,14 @@ from uuid import UUID
 from fastapi import Depends
 
 from polar.account.repository import AccountRepository
-from polar.auth.dependencies import Authenticator
+from polar.auth.dependencies import Authenticator, WebUserSession
 from polar.auth.models import AuthSubject, Organization, User
 from polar.auth.scope import Scope
 from polar.exceptions import NotPermitted, ResourceNotFound
 from polar.models import Organization as OrganizationModel
 from polar.models import PayoutAccount as PayoutAccountModel
 from polar.models.account import Account as AccountModel
+from polar.oauth2.exceptions import InsufficientScopeError
 from polar.organization.repository import OrganizationRepository
 from polar.organization.schemas import OrganizationID
 from polar.payout_account.repository import PayoutAccountRepository
@@ -190,6 +191,86 @@ AuthorizeOrgAccessUser = Annotated[
             _always_allow,
             allowed_subjects={User},
             required_scopes={Scope.organizations_write},
+        )
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
+# User-personal authorization
+# ---------------------------------------------------------------------------
+# For endpoints that operate on the authenticated user themselves (own
+# profile, own PATs, OAuth identity links, email update, etc.) — i.e. no
+# organization resource to authorize against. The user-personal analogue of
+# OrgPolicyGuard.
+#
+# Two prefixes:
+#
+# - ``AuthorizeWeb{User,Payouts}{Read,Write}`` — User **via web session**
+#   only. Rejects API tokens (PATs, OATs, OAuth2 access tokens). Use for
+#   browser/dashboard-only flows.
+# - ``Authorize{User}{Read,Write}`` — Any User subject (web session, PAT,
+#   OAuth2 access token) with the appropriate scope. Use for endpoints that
+#   legitimately accept API tokens (e.g. mobile app account deletion).
+#
+# Read aliases accept either the matching ``_read`` or ``_write`` scope
+# (write implies read). Write aliases require the ``_write`` scope. This
+# scope check is the read/write gate for impersonation: impersonation
+# sessions only carry ``READ_ONLY_SCOPES``, so they are rejected from any
+# endpoint requiring a ``_write`` scope — regardless of which prefix is used.
+# ---------------------------------------------------------------------------
+
+
+def WebUserAuthorizer(required_scopes: set[Scope]) -> Any:
+    """FastAPI dependency: authenticate as a User **via web session** (via
+    ``WebUserSession``, which rejects API tokens) and require at least one
+    of the given scopes."""
+
+    async def dependency(
+        auth_subject: WebUserSession,
+    ) -> AuthSubject[User]:
+        if not (auth_subject.scopes & required_scopes):
+            raise InsufficientScopeError({s.value for s in required_scopes})
+        return auth_subject
+
+    return dependency
+
+
+AuthorizeWebUserRead = Annotated[
+    AuthSubject[User],
+    Depends(WebUserAuthorizer({Scope.user_read, Scope.user_write})),
+]
+AuthorizeWebUserWrite = Annotated[
+    AuthSubject[User],
+    Depends(WebUserAuthorizer({Scope.user_write})),
+]
+AuthorizeWebPayoutsRead = Annotated[
+    AuthSubject[User],
+    Depends(WebUserAuthorizer({Scope.payouts_read, Scope.payouts_write})),
+]
+AuthorizeWebPayoutsWrite = Annotated[
+    AuthSubject[User],
+    Depends(WebUserAuthorizer({Scope.payouts_write})),
+]
+
+
+# ``Authorize{User}{Read,Write}`` — any User subject (web, PAT, OAuth2) +
+# scope check. Use these only for endpoints that need to accept API tokens.
+AuthorizeUserRead = Annotated[
+    AuthSubject[User],
+    Depends(
+        Authenticator(
+            allowed_subjects={User},
+            required_scopes={Scope.user_read, Scope.user_write},
+        )
+    ),
+]
+AuthorizeUserWrite = Annotated[
+    AuthSubject[User],
+    Depends(
+        Authenticator(
+            allowed_subjects={User},
+            required_scopes={Scope.user_write},
         )
     ),
 ]

@@ -1,7 +1,12 @@
 from fastapi import Depends, Request
 
-from polar.auth.dependencies import Authenticator, WebUserRead, WebUserWrite
+from polar.auth.dependencies import Authenticator
 from polar.auth.models import AuthSubject
+from polar.authz.dependencies import (
+    AuthorizeUserWrite,
+    AuthorizeWebUserRead,
+    AuthorizeWebUserWrite,
+)
 from polar.customer_portal.endpoints.downloadables import router as downloadables_router
 from polar.customer_portal.endpoints.license_keys import router as license_keys_router
 from polar.customer_portal.endpoints.order import router as order_router
@@ -14,7 +19,6 @@ from polar.routing import APIRouter
 from polar.user.oauth_service import oauth_account_service
 from polar.user.service import user as user_service
 
-from .auth import UserWrite
 from .schemas import (
     UserDeletionResponse,
     UserIdentityVerification,
@@ -33,7 +37,7 @@ router.include_router(license_keys_router, deprecated=True, include_in_schema=Fa
 
 
 @router.get("/me", response_model=UserRead)
-async def get_authenticated(auth_subject: WebUserRead) -> User:
+async def get_authenticated(auth_subject: AuthorizeWebUserRead) -> User:
     return auth_subject.subject
 
 
@@ -41,7 +45,7 @@ async def get_authenticated(auth_subject: WebUserRead) -> User:
 async def update_authenticated(
     user_update: UserUpdate,
     request: Request,
-    auth_subject: WebUserWrite,
+    auth_subject: AuthorizeWebUserWrite,
     session: AsyncSession = Depends(get_db_session),
 ) -> User:
     ip_address = request.client.host if request.client else None
@@ -59,7 +63,7 @@ async def scopes(
 
 @router.post("/me/identity-verification", response_model=UserIdentityVerification)
 async def create_identity_verification(
-    auth_subject: WebUserWrite,
+    auth_subject: AuthorizeWebUserWrite,
     session: AsyncSession = Depends(get_db_session),
 ) -> UserIdentityVerification:
     return await user_service.create_identity_verification(
@@ -75,7 +79,7 @@ async def create_identity_verification(
     },
 )
 async def delete_authenticated_user(
-    auth_subject: UserWrite,
+    auth_subject: AuthorizeUserWrite,
     session: AsyncSession = Depends(get_db_session),
 ) -> UserDeletionResponse:
     """
@@ -105,7 +109,7 @@ async def delete_authenticated_user(
 )
 async def disconnect_oauth_account(
     platform: OAuthPlatform,
-    auth_subject: WebUserWrite,
+    auth_subject: AuthorizeWebUserWrite,
     session: AsyncSession = Depends(get_db_session),
 ) -> None:
     """
