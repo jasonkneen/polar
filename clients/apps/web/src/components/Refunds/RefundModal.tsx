@@ -20,8 +20,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@polar-sh/ui/components/ui/form'
-import { useForm } from 'react-hook-form'
-import { Well, WellContent, WellFooter, WellHeader } from '../Shared/Well'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from '../Toast/use-toast'
 import { RefundReasonDisplay } from './utils'
 
@@ -31,7 +30,7 @@ interface RefundModalProps {
 }
 
 export const RefundModal = ({ order, hide }: RefundModalProps) => {
-  const maximumRefundAmount = order.net_amount - order.refunded_amount
+  const maximumRefundAmount = order.refundable_amount
   const canRefund = maximumRefundAmount > 0
 
   const form = useForm<schemas['RefundCreate']>({
@@ -42,6 +41,15 @@ export const RefundModal = ({ order, hide }: RefundModalProps) => {
       revoke_benefits: !order.subscription_id,
     },
   })
+
+  const amount = useWatch({ control: form.control, name: 'amount' }) ?? 0
+  const isMaximumRefund = amount === maximumRefundAmount
+  const previewTax = isMaximumRefund
+    ? order.refundable_tax_amount
+    : order.net_amount > 0
+      ? Math.round((amount * order.tax_amount) / order.net_amount)
+      : 0
+  const previewTotal = amount + previewTax
 
   const createRefund = useCreateRefund()
 
@@ -88,7 +96,7 @@ export const RefundModal = ({ order, hide }: RefundModalProps) => {
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(handleRefundOrder)}
-          className="flex flex-col gap-8"
+          className="flex flex-col gap-4"
         >
           <div className="flex flex-col gap-4">
             <FormField
@@ -109,7 +117,23 @@ export const RefundModal = ({ order, hide }: RefundModalProps) => {
               }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Amount</FormLabel>
+                  <div className="flex h-4 flex-row items-center justify-between">
+                    <FormLabel>Amount (excl. tax)</FormLabel>
+                    {canRefund && !isMaximumRefund && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          form.setValue('amount', maximumRefundAmount, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          })
+                        }
+                        className="dark:text-polar-400 dark:hover:text-polar-200 text-xs text-gray-500 underline hover:text-gray-900"
+                      >
+                        Refund fully
+                      </button>
+                    )}
+                  </div>
                   <FormControl>
                     <MoneyInput
                       placeholder={0}
@@ -117,6 +141,20 @@ export const RefundModal = ({ order, hide }: RefundModalProps) => {
                       {...field}
                     />
                   </FormControl>
+                  {amount > 0 && amount <= maximumRefundAmount && (
+                    <p className="dark:text-polar-400 text-xs text-gray-500">
+                      Customer will be refunded{' '}
+                      <span className="dark:text-polar-200 font-medium text-gray-900">
+                        {formatCurrency('compact')(
+                          previewTotal,
+                          order.currency,
+                        )}
+                      </span>{' '}
+                      ({formatCurrency('compact')(amount, order.currency)} +{' '}
+                      {formatCurrency('compact')(previewTax, order.currency)}{' '}
+                      tax)
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -178,31 +216,23 @@ export const RefundModal = ({ order, hide }: RefundModalProps) => {
               />
             )}
           </div>
-          <Well className="p-6">
-            <WellHeader>
-              <h3 className="font-medium">
-                Original payment fees are not returned
-              </h3>
-            </WellHeader>
-            <WellContent>
-              <p className="dark:text-polar-500 text-gray-500">
-                Underlying payment processors still charge us for the original
-                payment - even in case of a full refund. However, no additional
-                fees are applied of course.
-              </p>
-            </WellContent>
-            <WellFooter>
+          <div className="dark:text-polar-500 dark:bg-polar-800 space-y-1.5 rounded-xl bg-gray-50 p-3 text-sm text-gray-500">
+            <p>
+              The original payment processing fees stay deducted from your
+              balance. No additional fees are charged for the refund itself.
+            </p>
+            <p>
               <a
-                href="https://polar.sh/docs/documentation/features/refunds"
-                className="text-blue-500 dark:text-blue-400"
+                href="https://polar.sh/docs/features/refunds"
+                className="underline hover:no-underline"
                 target="_blank"
-                rel="noreferrer"
+                rel="noreferrer noopener"
               >
-                Learn more
+                Learn more about refunds
               </a>
-            </WellFooter>
-          </Well>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            </p>
+          </div>
+          <div className="flex flex-col gap-4 md:flex-row-reverse md:items-center md:justify-start">
             <Button
               type="submit"
               disabled={!canRefund}
@@ -210,7 +240,7 @@ export const RefundModal = ({ order, hide }: RefundModalProps) => {
             >
               Refund Order
             </Button>
-            <Button variant="secondary" onClick={hide}>
+            <Button variant="ghost" onClick={hide}>
               Cancel
             </Button>
           </div>
