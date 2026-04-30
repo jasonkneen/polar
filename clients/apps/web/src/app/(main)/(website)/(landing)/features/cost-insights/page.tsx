@@ -1,12 +1,12 @@
-import { FinancePage } from '@/components/Landing/features/FinancePage'
+import { CostInsightsPage } from '@/components/Landing/features/CostInsightsPage'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Finance — Polar',
+  title: 'Cost Insights — Polar',
   description:
-    'Live balance, transactions ledger, transparent fees, and manual payouts. All visible.',
+    'Track cost, profit, and customer LTV by annotating events with cost data.',
   keywords:
-    'finance, payouts, transactions, ledger, balance, fees, stripe connect, multi-currency',
+    'cost insights, profit tracking, LTV, customer lifetime value, cost events, llm cost tracking',
   openGraph: {
     siteName: 'Polar',
     type: 'website',
@@ -32,5 +32,5 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  return <FinancePage />
+  return <CostInsightsPage />
 }

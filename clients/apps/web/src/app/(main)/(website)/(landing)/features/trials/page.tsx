@@ -1,12 +1,12 @@
-import { FinancePage } from '@/components/Landing/features/FinancePage'
+import { TrialsPage } from '@/components/Landing/features/TrialsPage'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Finance — Polar',
+  title: 'Trials — Polar',
   description:
-    'Live balance, transactions ledger, transparent fees, and manual payouts. All visible.',
+    'Free or paid trials with automatic conversion, conversion reminders, and abuse protection — built into your subscriptions.',
   keywords:
-    'finance, payouts, transactions, ledger, balance, fees, stripe connect, multi-currency',
+    'free trial, trial period, trial conversion, trial abuse prevention, saas trial',
   openGraph: {
     siteName: 'Polar',
     type: 'website',
@@ -32,5 +32,5 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  return <FinancePage />
+  return <TrialsPage />
 }

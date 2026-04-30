@@ -183,34 +183,49 @@ const LandingPageDesktopNavigation = () => {
     {
       items: [
         {
-          href: '/features/products',
-          label: 'Products',
-          subtitle: 'Digital products for SaaS',
-        },
-        {
           href: '/features/usage-billing',
           label: 'Usage Billing',
-          subtitle: 'Ingestion-based Billing',
+          subtitle: 'Meter and bill any event',
         },
         {
-          href: '/features/customers',
-          label: 'Customer Management',
-          subtitle: 'Profiles & Analytics',
+          href: '/features/subscriptions',
+          label: 'Subscriptions',
+          subtitle: 'Recurring revenue on autopilot',
         },
         {
-          href: '/features/analytics',
-          label: 'Analytics',
-          subtitle: 'Revenue Insights',
+          href: '/features/seats',
+          label: 'Seats',
+          subtitle: 'Pricing that scales with teams',
         },
         {
-          href: '/features/benefits',
-          label: 'Benefits',
-          subtitle: 'Powerful Entitlements',
+          href: '/features/credits',
+          label: 'Credits',
+          subtitle: 'Prepay and draw down over time',
+        },
+        {
+          href: '/features/trials',
+          label: 'Trials',
+          subtitle: 'Trials that convert themselves',
+        },
+        {
+          href: '/features/discounts',
+          label: 'Discounts',
+          subtitle: 'Promo codes & recurring deals',
+        },
+        {
+          href: '/features/cost-insights',
+          label: 'Cost Insights',
+          subtitle: 'Cost, profit, and LTV per customer',
         },
         {
           href: '/features/finance',
           label: 'Finance',
-          subtitle: 'Payouts & Reporting',
+          subtitle: 'Balance, ledger, fees, payouts',
+        },
+        {
+          href: '/features/merchant-of-record',
+          label: 'Merchant of Record',
+          subtitle: 'Global tax compliance, on us',
         },
       ],
     },

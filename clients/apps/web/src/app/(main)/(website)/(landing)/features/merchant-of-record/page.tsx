@@ -1,12 +1,12 @@
-import { CustomersPage } from '@/components/Landing/features/CustomersPage'
+import { MerchantOfRecordPage } from '@/components/Landing/features/MerchantOfRecordPage'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Customer Management — Polar',
+  title: 'Merchant of Record — Polar',
   description:
-    'Streamlined customer lifecycle management with detailed profiles, subscription management, and customer analytics.',
+    'Polar is your reseller. We handle international sales taxes globally so you can focus on the product.',
   keywords:
-    'customer management, customer portal, subscription management, customer analytics, saas customers',
+    'merchant of record, MoR, sales tax, VAT, GST, international taxes, reseller, EU OSS, tax compliance',
   openGraph: {
     siteName: 'Polar',
     type: 'website',
@@ -32,5 +32,5 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  return <CustomersPage />
+  return <MerchantOfRecordPage />
 }

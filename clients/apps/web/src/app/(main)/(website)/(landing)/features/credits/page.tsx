@@ -1,12 +1,12 @@
-import { FinancePage } from '@/components/Landing/features/FinancePage'
+import { CreditsPage } from '@/components/Landing/features/CreditsPage'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Finance — Polar',
+  title: 'Credits — Polar',
   description:
-    'Live balance, transactions ledger, transparent fees, and manual payouts. All visible.',
+    'Prepaid usage for your API. Issue credits, draw down balances, and let metered pricing handle the overage.',
   keywords:
-    'finance, payouts, transactions, ledger, balance, fees, stripe connect, multi-currency',
+    'prepaid billing, api credits, usage credits, wallet, prepay, metered billing',
   openGraph: {
     siteName: 'Polar',
     type: 'website',
@@ -32,5 +32,5 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  return <FinancePage />
+  return <CreditsPage />
 }
