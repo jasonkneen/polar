@@ -17,8 +17,6 @@ concurrency:
 jobs:
   check:
     name: "Check generated client"
-    # TODO: Remove this and fix flakiness
-    if: false
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -33,14 +31,15 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
+          fetch-depth: 100
+          filter: blob:none
 
       - name: Merge base branch
         if: github.event_name == 'pull_request'
         run: |
           git config user.email "actions@github.com"
           git config user.name "github-actions"
-          git fetch origin ${{ github.event.pull_request.base.ref }}
+          git fetch --depth=100 origin ${{ github.event.pull_request.base.ref }}
           if ! git merge --no-edit origin/${{ github.event.pull_request.base.ref }}; then
             git merge --abort
             echo "::error::Could not merge ${{ github.event.pull_request.base.ref }} into the PR cleanly. Please update your branch locally and push."
@@ -79,7 +78,7 @@ jobs:
 
       - name: Install client dependencies
         working-directory: ./clients
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Regenerate OpenAPI client
         working-directory: ./clients
@@ -94,12 +93,12 @@ jobs:
             echo "::warning::Generated client (clients/packages/client/src/v1.ts) is out of date. Run 'pnpm generate' in clients/."
           fi
           echo "stale=$stale" >> "$GITHUB_OUTPUT"
-          {
-            echo 'body<<COMMENT_EOF'
-            echo '<!-- __OPENAPI_CLIENT_REGEN -->'
-            echo '## Generated OpenAPI Client'
-            echo ''
-            if [[ "$stale" == "true" ]]; then
+          if [[ "$stale" == "true" ]]; then
+            {
+              echo 'body<<COMMENT_EOF'
+              echo '<!-- __OPENAPI_CLIENT_REGEN -->'
+              echo '## Generated OpenAPI Client'
+              echo ''
               echo '⚠️ **`clients/packages/client/src/v1.ts` is out of date.**'
               echo ''
               echo 'The OpenAPI schema has changed but the generated client has not been regenerated. Please run:'
@@ -117,11 +116,9 @@ jobs:
               echo '```'
               echo ''
               echo '</details>'
-            else
-              echo '✅ Generated client is up to date.'
-            fi
-            echo 'COMMENT_EOF'
-          } >> "$GITHUB_OUTPUT"
+              echo 'COMMENT_EOF'
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Find existing comment
         if: github.event_name == 'pull_request'
@@ -132,13 +129,24 @@ jobs:
           body-includes: "<!-- __OPENAPI_CLIENT_REGEN -->"
 
       - name: Create or update PR comment
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.body.outputs.stale == 'true'
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           edit-mode: replace
           body: ${{ steps.body.outputs.body }}
+
+      - name: Delete stale comment
+        if: steps.body.outputs.stale == 'false' && steps.fc.outputs.comment-id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.deleteComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ steps.fc.outputs.comment-id }},
+            });
 
       - name: Fail if generated client is out of date
         if: steps.body.outputs.stale == 'true'
